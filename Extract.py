@@ -153,7 +153,7 @@ def domain_geo(birdWing, domain_geo ='domain.geo'):
     #refine birdwing
     #0:lead edge,  1:top,   2:trialing edge,   3:bottom
     cl_ref = 0.0005 #[0.0005,0.0005,0.0005,0.01];
-    d_min_birdwing = 10*cl_ref
+    d_min_birdwing = 5*cl_ref
     d_max_birdwing = r_bg_ball
 
 
