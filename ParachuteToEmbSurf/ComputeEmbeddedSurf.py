@@ -22,7 +22,7 @@ def ReadNodes(file):
     line = file.readline()  # should be "Nodes FluidNodes"
     while line:
         data = line.split()
-        if data[0] == 'NODES':
+        if data[0] == 'NODES' or data[0] == 'Nodes':
             break
         line = file.readline()
     print('ReadNodes, the first line is ', line)
@@ -30,14 +30,14 @@ def ReadNodes(file):
     while line:
         line = file.readline()
         data = line.split()
-        if data[0][0] == '*' or data[0] == 'NODES':
+        if data[0][0] == '*' or data[0] == 'NODES' or data[0] == 'Nodes':
             continue
         if RepresentsInt(data[0]):
             nodes.append(list(map(float, data[1:4])))
         else:
             break
 
-
+    print("ReadNodes reads ", len(nodes), " nodes")
     return file, line, nodes
 
 def ReadElems(file, line):
@@ -55,7 +55,7 @@ def ReadElems(file, line):
 
         else:
             break
-
+    print("ReadElems reads ", len(elems), " elems")
     return file, line, elems, type
 
 
@@ -426,13 +426,13 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
     elemId[1] = nS
     # Step2.3 write payload surface elems
     if(type == 1):
-        firstNode = nodeId[1] + 1
+        firstNode = nodeId[1] 
         nType += 1
         embFile.write('Elements StickMovingSurface_%d using nodeset\n' % (nType + 1))
         for i in range(len(payloadElems)):
             nS += 1
             embFile.write('%d  4 %d  %d  %d\n' % (
-                        nS, firstNode + payloadElems[i, 0], firstNode + payloadElems[i, 1], firstNode + payloadElems[i, 2]))
+                        nS, firstNode + payloadElems[i][0], firstNode + payloadElems[i][1], firstNode + payloadElems[i][2]))
             elemId[2] = nS
 
     print('fabric elems:[', 1, ' , ', elemId[0],
@@ -442,5 +442,5 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    ParachuteEmbSurf(type = 0, beamPars=[1, 4, 0.01], inputStru='./mesh_emb.top', inputPayload='./capsule.top',
+    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 0.01], inputStru='./mesh_emb.top', inputPayload='./capsule.top',
                      output='embeddedSurface.top')
