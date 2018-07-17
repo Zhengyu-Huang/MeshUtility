@@ -315,7 +315,7 @@ def ReadStru(inputStru, beamPars):
         lines = SplitLines(bunchLines[i])
         allLines.append(lines)
 
-    for i in range(3):
+    for i in range(len(allLines)):
         for line in allLines[i]:
             line_coord = np.empty([len(line) - 2 * skip, 3], dtype=float)
             for j in range(len(line) - 2 * skip):
@@ -426,7 +426,7 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
     elemId[1] = nS
     # Step2.3 write payload surface elems
     if(type == 1):
-        firstNode = nodeId[1] 
+        firstNode = nodeId[1]
         nType += 1
         embFile.write('Elements StickMovingSurface_%d using nodeset\n' % (nType + 1))
         for i in range(len(payloadElems)):
