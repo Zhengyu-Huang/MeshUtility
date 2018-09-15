@@ -428,7 +428,7 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
     if(type == 1):
         firstNode = nodeId[1]
         nType += 1
-        embFile.write('Elements StickMovingSurface_%d using nodeset\n' % (nType + 1))
+        embFile.write('Elements StickFixedSurface_%d using nodeset\n' % (nType + 1))
         for i in range(len(payloadElems)):
             nS += 1
             embFile.write('%d  4 %d  %d  %d\n' % (
