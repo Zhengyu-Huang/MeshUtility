@@ -362,11 +362,22 @@ class Mesh:
         R_b, ht_b, hb_b = 7.804, 38.3158, 35.7358 #Band radius, band top z and band bottom z
         h0 = 0
 
+        # todo the second parameter is the z displacement of band
+        band_b3 = 0.0
+
+        # todo the second parameter is the z displacement of disk
+        disk_b3 = 50.0
+
+        band_deform_method = 'rigid'
+
         ############ piece map
         theta = np.pi / n
-        # the first parameter is cosa in [0, 1]
-        cosa = 0.1
+
+        ################################################ This is for the disk
+        # todo the first parameter is cosa in [0, 1]
+        cosa = 0.5
         sina = -np.sqrt(1 - cosa * cosa)
+        # todo check can also be + sina / np.cos(theta)
         cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
         sinb = -cosa + cosb * sina * np.tan(theta)
         print('cosb^2 + sinb^2 = ', cosb * cosb + sinb * sinb)
@@ -374,9 +385,8 @@ class Mesh:
         disk_rot0 = np.array([[cosa, -cosb * sina, -sinb * sina],
                          [0, cosa - cosb * sina * np.tan(theta), cosb],
                          [sina, cosb * cosa, sinb * cosa]])
-        # the second parameter is b3
-        b3 = 50.0
-        disk_disp = np.array([0, 0, b3])
+
+        disk_disp = np.array([0, 0, disk_b3])
         print('orthogonal matrix test ', np.dot(disk_rot0.T, disk_rot0))
 
         # The rigid motion of the first half gore is rot0*x + disp0
@@ -418,8 +428,63 @@ class Mesh:
             disk_rot_matrices.append(disk_rotn)
             disk_rot_matrices.append(disk_rotn_2)
 
-        #For the piece  [2pi/n * gore_id, 2pi/n * (gore_id + 0.5)]
-        #map the point (r, theta) to
+        ################################################ This is for the band, there are two maps,
+        # 1) flat
+        # 2) rigid
+        # todo the first parameter is r_b_deform in [0, R_b]
+        r_b_deform = 5.0
+
+        if band_deform_method == 'rigid':
+            l_b_deform = 2*R_b*np.sin(theta/2.)
+            R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(l_b_deform*l_b_deform - r_b_deform*r_b_deform*np.sin(theta)*np.sin(theta))
+            # todo check can also be - np.sqrt
+            cosa = (r_b_deform*np.sin(theta)*np.sin(theta) - np.sqrt(r_b_deform**2 * np.sin(theta)**4 - 2.*(1 - np.cos(theta))*(r_b_deform**2 * np.sin(theta)**2 - R_b**2*(1 - np.cos(theta))**2)))\
+                   /(2*R_b*(1. - np.cos(theta)))
+            sina = -np.sqrt(1 - cosa * cosa)
+            print('cosa and sin a : ', cosa, ' ', sina)
+            band_rot0 = np.array([[cosa, -sina, 0],
+                                  [sina,  cosa, 0],
+                                  [   0,     0, 1]])
+            band_disp0 = np.array([R_b_deform, 0, 0]) - np.dot(band_rot0, np.array([R_b, 0, 0]))
+
+            band_disp0[2] += band_b3
+
+            ##todo start debug validation
+            band_disp0_ = np.array([r_b_deform*np.cos(theta), r_b_deform*np.sin(theta), 0]) - np.dot(band_rot0, np.array([R_b*np.cos(theta), R_b*np.sin(theta), 0]))
+            band_disp0_[2] += band_b3
+            assert(np.linalg.norm(band_disp0 - band_disp0_) < 1e-10)
+            ##todo end debug validation
+
+
+            band_rot_matrices = []
+            band_disp_vectors = []
+
+            ######################
+            for gore_id in range(n):
+                # Handle the piece of theta = [2pi/n * gore_id, 2pi/n * (gore_id+1)]
+                # The piece will be fold at the center
+
+                ##
+                # The the map is
+                # rotn = R_z(theta*n) * rot0 * R_z(theta*n)^{-1}
+                # bi = b0
+                ##
+                R_z = np.array([[np.cos(2 * gore_id * theta), -np.sin(2 * gore_id * theta), 0.],
+                                [np.sin(2 * gore_id * theta), np.cos(2 * gore_id * theta), 0.],
+                                [0., 0., 1.]])
+                band_rotn = np.dot(R_z, np.dot(band_rot0, R_z.T))
+                band_dispn = np.dot(R_z, band_disp0)
+
+                Ref_z = np.array([[np.cos((4 * gore_id + 2) * theta), np.sin((4 * gore_id + 2) * theta), 0.],
+                                  [np.sin((4 * gore_id + 2) * theta), -np.cos((4 * gore_id + 2) * theta), 0.],
+                                  [0., 0., 1.]])
+                band_rotn_2 = np.dot(Ref_z, np.dot(band_rotn, Ref_z.T))
+                band_dispn_2 = np.dot(Ref_z, band_dispn)
+                band_rot_matrices.append(band_rotn)
+                band_rot_matrices.append(band_rotn_2)
+                band_disp_vectors.append(band_dispn)
+                band_disp_vectors.append(band_dispn_2)
+
 
         n_n = len(nodes)  # save number of nodes
         n_es = len(ele_set)
@@ -434,8 +499,10 @@ class Mesh:
                     ele_nodes = ele[i_e].nodes
                     for i_n in ele_nodes:
                         xx = nodes[i_n - 1]
-                        angle_x = np.arctan2(xx[1], xx[0]) + 2*np.pi#[-pi, 2pi]
-                        gore_id = int(angle_x/theta)%(2*n)
+                        angle_x = np.arctan2(xx[1], xx[0])   #[-pi, 2pi]
+                        gore_id = int((angle_x + 2 * np.pi)/theta)%(2*n)
+                        # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+                        # map the point xx -> rot_A * (xx - c) + c + disp_b, here c = [0, 0, xx[2]]
 
 
                         disk_rot = disk_rot_matrices[gore_id]
@@ -444,7 +511,144 @@ class Mesh:
 
                         node_disp[i_n - 1,:] =  new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
+            if ele_info[1] == 4 and ele_info[0] == 'Band_Gores':
+                n_e = len(ele)
+                if band_deform_method == 'rigid':
+                    for i_e in range(n_e):
+                        ele_nodes = ele[i_e].nodes
+                        for i_n in ele_nodes:
+                            xx = nodes[i_n - 1]
+                            angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
+                            gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+                            # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+                            # map the point xx -> rot_A * xx  + disp
 
+                            band_rot = band_rot_matrices[gore_id]
+                            band_disp = band_disp_vectors[gore_id]
+                            new_xx = np.dot(band_rot, xx) + band_disp
+
+                            node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+                elif band_deform_method == 'flat':
+
+                    l_b_deform = theta * R_b
+                    R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(
+                        l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
+
+                    for i_e in range(n_e):
+                        ele_nodes = ele[i_e].nodes
+                        for i_n in ele_nodes:
+                            xx = nodes[i_n - 1]
+                            angle_x = np.arctan2(xx[1], xx[0])   # [-pi, pi]
+                            gore_id = int((angle_x + 2 * np.pi)/ theta) % (2 * n)
+                            # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+                            # map the point xx -> rot_A * xx  + disp
+
+                            d_theta = angle_x - gore_id*theta if angle_x >= 0 else angle_x + 2*np.pi - gore_id*theta
+                            assert(d_theta <=  theta and d_theta >= 0)
+                            ds = d_theta * R_b
+
+                            start_deform = np.empty(3)
+                            end_deform = np.empty(3)
+                            if gore_id % 2 == 0:
+                                start_deform[:] = R_b_deform*np.cos(gore_id*theta), R_b_deform*np.sin(gore_id*theta), 0
+                                end_deform[:]   = r_b_deform*np.cos((gore_id+1)*theta), r_b_deform*np.sin((gore_id+1)*theta), 0
+                            else: #gore_id%2 == 1
+                                start_deform[:] = r_b_deform * np.cos(gore_id*theta), r_b_deform * np.sin(gore_id*theta), 0
+                                end_deform[:] = R_b_deform * np.cos((gore_id+1)*theta), R_b_deform * np.sin((gore_id+1)*theta), 0
+
+
+                            new_xx = (1 - ds/l_b_deform)*start_deform + ds/l_b_deform*end_deform
+                            new_xx[2] = xx[2] + band_b3
+
+                            node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+
+        n_n = len(nodes)  # save number of nodes
+        n_es = len(ele_set)
+
+        ################   Update canopy
+        for i_es in range(n_es):
+            ele = ele_set[i_es]
+            ele_info = ele_set_info[i_es]
+            if ele_info[1] == 4 and ele_info[0] == 'Disk_Gores':
+                n_e = len(ele)
+                for i_e in range(n_e):
+                    ele_nodes = ele[i_e].nodes
+                    for i_n in ele_nodes:
+                        xx = nodes[i_n - 1]
+                        angle_x = np.arctan2(xx[1], xx[0])  # [-pi, 2pi]
+                        gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+                        # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+                        # map the point xx -> rot_A * (xx - c) + c + disp_b, here c = [0, 0, xx[2]]
+
+
+                        disk_rot = disk_rot_matrices[gore_id]
+                        xx_shift, disp_shift = np.array([xx[0], xx[1], 0.0]), np.array([0, 0, xx[2]])
+                        new_xx = np.dot(disk_rot, xx_shift) + disk_disp + disp_shift
+
+                        node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+
+            if ele_info[1] == 4 and ele_info[0] == 'Band_Gores':
+                n_e = len(ele)
+                if band_deform_method == 'rigid':
+                    for i_e in range(n_e):
+                        ele_nodes = ele[i_e].nodes
+                        for i_n in ele_nodes:
+                            xx = nodes[i_n - 1]
+                            angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
+                            gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+                            # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+                            # map the point xx -> rot_A * xx  + disp
+
+                            band_rot = band_rot_matrices[gore_id]
+                            band_disp = band_disp_vectors[gore_id]
+                            new_xx = np.dot(band_rot, xx) + band_disp
+
+                            node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+                elif band_deform_method == 'flat':
+
+                    l_b_deform = theta * R_b
+                    R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(
+                        l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
+
+                    for i_e in range(n_e):
+                        ele_nodes = ele[i_e].nodes
+                        for i_n in ele_nodes:
+                            xx = nodes[i_n - 1]
+                            angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
+                            gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+                            # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+                            # map the point xx -> rot_A * xx  + disp
+
+                            d_theta = angle_x - gore_id * theta if angle_x >= 0 else angle_x + 2 * np.pi - gore_id * theta
+                            assert (d_theta <= theta and d_theta >= 0)
+                            ds = d_theta * R_b
+
+                            start_deform = np.empty(3)
+                            end_deform = np.empty(3)
+                            if gore_id % 2 == 0:
+                                start_deform[:] = R_b_deform * np.cos(gore_id * theta), R_b_deform * np.sin(
+                                    gore_id * theta), 0
+                                end_deform[:] = r_b_deform * np.cos((gore_id + 1) * theta), r_b_deform * np.sin(
+                                    (gore_id + 1) * theta), 0
+                            else:  # gore_id%2 == 1
+                                start_deform[:] = r_b_deform * np.cos(gore_id * theta), r_b_deform * np.sin(
+                                    gore_id * theta), 0
+                                end_deform[:] = R_b_deform * np.cos((gore_id + 1) * theta), R_b_deform * np.sin(
+                                    (gore_id + 1) * theta), 0
+
+                            new_xx = (1 - ds / l_b_deform) * start_deform + ds / l_b_deform * end_deform
+                            new_xx[2] = xx[2] + band_b3
+
+                            node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+
+        ##############################################################################################################
+        # Update suspension lines
+        ##############################################################################################################
+        for i_es in range(n_es):
+            ele = ele_set[i_es]
+            ele_info = ele_set_info[i_es]
+            if ele_info[1] == 2 and (ele_info[0] == 'Suspension_Lines' or ele_info[0] == 'Vent_Lines' or ele_info[0] == 'Gap_Lines'):
+                print('handle suspension lines')
 
 
         self.node_disp = node_disp
