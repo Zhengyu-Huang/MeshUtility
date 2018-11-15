@@ -12,7 +12,7 @@
 import sys
 import numpy as np
 from scipy.optimize import fsolve
-import Catenary
+import Line
 
 class Elem:
     def __init__(self, id, nodes, att = 0, eframe = None):
@@ -471,7 +471,7 @@ class Mesh:
         elif band_deform_method == 'flat':
             l_b_deform = theta * R_b
 
-        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))*0.98
+        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))
         #todo enforce R_b_deform = R_d_deform,
         R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
 
@@ -729,7 +729,7 @@ class Mesh:
                     cur_length = np.linalg.norm(end_deform - start_deform)
 
                     if cur_length >= l_ref :
-                        print(ele_info[0], ' current lenght is ', cur_length, ' , which is greater than its undeformed length ', l_ref)
+                        #print(ele_info[0], ' current lenght is ', cur_length, ' , which is greater than its undeformed length ', l_ref)
 
                         for i_n in range(len(line)):
                             xx = nodes[line[i_n] - 1]
@@ -746,7 +746,7 @@ class Mesh:
 
 
 
-                        if line_relax_method == 'circle':
+                        if line_relax_method == 'parabolia':
                             print('have not implemented yet')
 
                             # a = fsolve(catenary, (cur_length/l_ref), np.sqrt(12 * (1. - cur_length/l_ref)))[0]
@@ -764,27 +764,46 @@ class Mesh:
                         elif line_relax_method == 'catenary':
                             # build 2d coordinate system, which is parallel to the z axis and
                             # contains the start_deform and end_deform, center at start deform
-                            # todo the line connecting these two points is parallel to z axis
 
                             dir_r = np.array([end_deform[0] - start_deform[0], end_deform[1] - start_deform[1]])
-                            assert(np.linalg.norm(dir_r) > 1.e-10)
-                            dir_r = dir_r/np.linalg.norm(dir_r)
 
-                            start_deform_2d = np.array([0,0])
-                            end_deform_2d = np.array(
-                                [(end_deform[0] - start_deform[0]) * dir_r[0] + (end_deform[1] - start_deform[1]) * dir_r[1], end_deform[2] - start_deform[2]])
-                            assert(np.linalg.norm(end_deform_2d) < l_ref)
-                            a, xm, ym = Catenary.catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], l_ref)
+                            if(np.linalg.norm(dir_r) > 1.e-10):
+                                dir_r = dir_r/np.linalg.norm(dir_r)
 
-                            for i_n in range(len(line)):
-                                xx = np.array(nodes[line[i_n] - 1])
-                                ds = np.linalg.norm(xx - xx_start)
-                                new_r, new_z = Catenary.point_on_catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], a, xm, ym, l_ref, ds)
+                                start_deform_2d = np.array([0,0])
+                                end_deform_2d = np.array(
+                                    [(end_deform[0] - start_deform[0]) * dir_r[0] + (end_deform[1] - start_deform[1]) * dir_r[1], end_deform[2] - start_deform[2]])
+                                assert(np.linalg.norm(end_deform_2d) < l_ref)
+                                a, xm, ym = Line.catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], l_ref)
 
-                                new_xx = np.array([new_r*dir_r[0] + start_deform[0], new_r*dir_r[1] + start_deform[1], new_z + start_deform[2]])
+                                for i_n in range(len(line)):
+                                    xx = np.array(nodes[line[i_n] - 1])
+                                    ds = np.linalg.norm(xx - xx_start)
+                                    new_r, new_z = Line.point_on_catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], a, xm, ym, l_ref, ds)
 
-                                node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+                                    new_xx = np.array([new_r*dir_r[0] + start_deform[0], new_r*dir_r[1] + start_deform[1], new_z + start_deform[2]])
 
+                                    node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+
+                            else:
+                                # todo the line connecting these two points is parallel to z axis
+                                print('the line is parallel to the z axis')
+
+                                dir_r = np.array([start_deform[0], start_deform[1]])
+                                dir_r = dir_r/np.linalg.norm(dir_r)
+                                circle_theta, circle_r = Line.line_to_circle(l_ref, abs(end_deform[2] - start_deform[2]))
+                                #choose the new coordinate center at (0,0,(start_deform[2] + end_deform[2])/2.0)
+                                start_deform_2d = np.array([start_deform[0]*dir_r[0] + start_deform[1]*dir_r[1], (start_deform[2] - end_deform[2])/2.0])
+                                end_deform_2d = np.array([end_deform[0]*dir_r[0] + end_deform[1]*dir_r[1], (end_deform[2] - start_deform[2])/2.0])
+
+                                for i_n in range(len(line)):
+                                    xx = np.array(nodes[line[i_n] - 1])
+                                    ds = np.linalg.norm(xx - xx_start)
+                                    new_r, new_z = Line.point_on_circle(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], circle_theta, circle_r, l_ref, ds)
+
+                                    new_xx = np.array([new_r*dir_r[0], new_r*dir_r[1], new_z + (start_deform[2] + end_deform[2])/2.0])
+
+                                    node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
 
 
