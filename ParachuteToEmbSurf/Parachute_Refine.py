@@ -471,12 +471,12 @@ class Mesh:
         elif band_deform_method == 'flat':
             l_b_deform = theta * R_b
 
-        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))
+        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))*0.98
         #todo enforce R_b_deform = R_d_deform,
         R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
 
 
-        band_b3 = min(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
+        band_b3 = max(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
                      disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
 
         if band_deform_method == 'rigid':
@@ -741,18 +741,10 @@ class Mesh:
                         #print('current lenght is ', cur_length, ' , which is smaller than its undeformed length ', l_ref)
 
                         # use catenary curve fitting
-                        #todo check start, end and z-axis are on the same plane
 
 
-                        angle_x = np.arctan2(start_deform[1], start_deform[0]) \
-                            if start_deform[0] ** 2 + start_deform[1] ** 2 > end_deform[0] ** 2 + end_deform[1] ** 2   \
-                            else np.arctan2(end_deform[1], end_deform[0])  # [-pi, pi]
 
-                        start_deform_2d = np.array([start_deform[0]*np.cos(angle_x) + start_deform[1]*np.sin(angle_x), start_deform[2]])
-                        end_deform_2d   = np.array([end_deform[0]*np.cos(angle_x) + end_deform[1]*np.sin(angle_x), end_deform[2]])
 
-                        assert(abs(np.sqrt(start_deform[0]**2 + start_deform[1]**2) - (start_deform[0] * np.cos(angle_x) + start_deform[1] * np.sin(angle_x))) < 1.e-10)
-                        assert(abs(np.sqrt(end_deform[0] ** 2 + end_deform[1] ** 2) - (end_deform[0] * np.cos(angle_x) + end_deform[1] * np.sin(angle_x))) < 1.e-10)
 
                         if line_relax_method == 'circle':
                             print('have not implemented yet')
@@ -770,7 +762,18 @@ class Mesh:
                             #     node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
                         elif line_relax_method == 'catenary':
+                            # build 2d coordinate system, which is parallel to the z axis and
+                            # contains the start_deform and end_deform, center at start deform
+                            # todo the line connecting these two points is parallel to z axis
 
+                            dir_r = np.array([end_deform[0] - start_deform[0], end_deform[1] - start_deform[1]])
+                            assert(np.linalg.norm(dir_r) > 1.e-10)
+                            dir_r = dir_r/np.linalg.norm(dir_r)
+
+                            start_deform_2d = np.array([0,0])
+                            end_deform_2d = np.array(
+                                [(end_deform[0] - start_deform[0]) * dir_r[0] + (end_deform[1] - start_deform[1]) * dir_r[1], end_deform[2] - start_deform[2]])
+                            assert(np.linalg.norm(end_deform_2d) < l_ref)
                             a, xm, ym = Catenary.catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], l_ref)
 
                             for i_n in range(len(line)):
@@ -778,7 +781,7 @@ class Mesh:
                                 ds = np.linalg.norm(xx - xx_start)
                                 new_r, new_z = Catenary.point_on_catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], a, xm, ym, l_ref, ds)
 
-                                new_xx = np.array([new_r*np.cos(angle_x), new_r*np.sin(angle_x),new_z])
+                                new_xx = np.array([new_r*dir_r[0] + start_deform[0], new_r*dir_r[1] + start_deform[1], new_z + start_deform[2]])
 
                                 node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
