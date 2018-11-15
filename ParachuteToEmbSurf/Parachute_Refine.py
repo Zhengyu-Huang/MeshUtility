@@ -388,13 +388,12 @@ class Mesh:
         r_d, R_d, h_d =  0.788, 7.7235, 39.2198 #Disk inner radius, outer radius and z
         R_b, ht_b, hb_b = 7.804, 38.3158, 35.7358 #Band radius, band top z and band bottom z
         h0 = 0
-        L_s, L_v, L_g = np.sqrt(R_b**2 + hb_b**2), r_d/2., np.sqrt((R_d - R_b)**2 + (h_d - ht_b)**2) # Suspension_Lines length ,  Vent_Lines length,    Gap_Lines length
+        L_s, L_v, L_g = np.sqrt(R_b**2 + hb_b**2), r_d, np.sqrt((R_d - R_b)**2 + (h_d - ht_b)**2) # Suspension_Lines length ,  Vent_Lines length,    Gap_Lines length
 
-        # todo the second parameter is the z displacement of band
-        band_b3 = 0.0
+
 
         # todo the second parameter is the z displacement of disk
-        disk_b3 = 50.0
+        disk_b3 = 2.0
 
         band_deform_method = 'rigid'
 
@@ -420,20 +419,22 @@ class Mesh:
         print('orthogonal matrix test ', np.dot(disk_rot0.T, disk_rot0))
 
         # The rigid motion of the first half gore is rot0*x + disp0
-        x1 = np.array([r_d, 0, 0])
-        x2 = np.array([R_d, 0, 0])
-        x3 = np.array([r_d*np.cos(theta), r_d*np.sin(theta), 0])
-        x4 = np.array([R_d*np.cos(theta), R_d*np.sin(theta), 0])
+        disk_x1 = np.array([r_d, 0, 0])
+        disk_x2 = np.array([R_d, 0, 0])
+        disk_x3 = np.array([r_d*np.cos(theta), r_d*np.sin(theta), 0])
+        disk_x4 = np.array([R_d*np.cos(theta), R_d*np.sin(theta), 0])
 
-        y1 = np.dot(disk_rot0, x1) + disk_disp
-        print('y1 is ', y1)
-        y2 = np.dot(disk_rot0, x2) + disk_disp
-        print('y1 is ', y2)
-        y3 = np.dot(disk_rot0, x3) + disk_disp
-        print('y1 is ', y3)
-        y4 = np.dot(disk_rot0, x4) + disk_disp
-        print('y1 is ', y4)
+        disk_y1 = np.dot(disk_rot0, disk_x1) + disk_disp + np.array([0.,0., h_d])
+        disk_y2 = np.dot(disk_rot0, disk_x2) + disk_disp + np.array([0.,0., h_d])
+        disk_y3 = np.dot(disk_rot0, disk_x3) + disk_disp + np.array([0.,0., h_d])
+        disk_y4 = np.dot(disk_rot0, disk_x4) + disk_disp + np.array([0.,0., h_d])
 
+        #R < r
+        R_d_top_deform = np.sqrt(disk_y1[0] ** 2 + disk_y1[1] ** 2)
+        r_d_top_deform = np.sqrt(disk_y3[0] ** 2 + disk_y3[1] ** 2)
+
+        R_d_bottom_deform = np.sqrt(disk_y2[0]**2 + disk_y2[1]**2)
+        r_d_bottom_deform = np.sqrt(disk_y4[0]**2 + disk_y4[1]**2)
         disk_rot_matrices = []
 
         ######################
@@ -461,8 +462,22 @@ class Mesh:
         ################################################ This is for the band, there are two maps,
         # 1) flat
         # 2) rigid
-        # todo the first parameter is r_b_deform in [0, R_b]
-        r_b_deform = 5.0
+
+        # todo parameters about the band are z displacement of band, and r_b_deform
+        #
+        r_b_deform, l_b_deform, R_b_deform = 0.0, 0.0, 0.0
+        if band_deform_method == 'rigid':
+            l_b_deform = 2*R_b*np.sin(theta/2.)
+        elif band_deform_method == 'flat':
+            l_b_deform = theta * R_b
+
+        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))
+        #todo enforce R_b_deform = R_d_deform,
+        R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
+
+
+        band_b3 = min(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
+                     disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
 
         if band_deform_method == 'rigid':
             l_b_deform = 2*R_b*np.sin(theta/2.)
@@ -518,6 +533,12 @@ class Mesh:
 
         n_n = len(nodes)  # save number of nodes
         n_es = len(ele_set)
+
+
+
+
+
+
 
         ################   Update canopy
         for i_es in range(n_es):
@@ -672,6 +693,16 @@ class Mesh:
                             node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
         ##############################################################################################################
+        # Update vent_center point
+        ##############################################################################################################
+        vent_center_node_id = 48842
+        xx = nodes[vent_center_node_id - 1]
+        assert(xx[0]**2 + xx[1]**2 + (xx[2] - h_d)**2 < 1.e-10)
+
+        vent_b3    = min(np.sqrt(L_v**2 - disk_y1[0]**2 - disk_y1[1]**2) + disk_y1[2] - h_d,
+                         np.sqrt(L_v**2 - disk_y3[0]**2 - disk_y3[1]**2) + disk_y3[2] - h_d)
+        node_disp[vent_center_node_id - 1, :] = 0., 0., vent_b3
+        ##############################################################################################################
         # Update suspension lines
         ##############################################################################################################
         for i_es in range(n_es):
@@ -686,9 +717,9 @@ class Mesh:
                 elif ele_info[0] == 'Gap_Lines':
                     l_ref = L_g
 
-                print('handle suspension lines')
+
                 lines = SplitLines(ele)
-                print('line number is ', len(lines))
+                print(ele_info[0], ' the number of lines is ', len(lines))
                 for i_line in range(len(lines)):
                     line = lines[i_line]
                     xx_start = np.array(nodes[line[0] - 1])
@@ -698,7 +729,7 @@ class Mesh:
                     cur_length = np.linalg.norm(end_deform - start_deform)
 
                     if cur_length >= l_ref :
-                        print('current lenght is ', cur_length, ' , which is greater than its undeformed length ', l_ref)
+                        print(ele_info[0], ' current lenght is ', cur_length, ' , which is greater than its undeformed length ', l_ref)
 
                         for i_n in range(len(line)):
                             xx = nodes[line[i_n] - 1]
@@ -707,7 +738,7 @@ class Mesh:
 
                             node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
                     else:
-                        print('current lenght is ', cur_length, ' , which is smaller than its undeformed length ', l_ref)
+                        #print('current lenght is ', cur_length, ' , which is smaller than its undeformed length ', l_ref)
 
                         # use catenary curve fitting
                         #todo check start, end and z-axis are on the same plane
@@ -720,9 +751,8 @@ class Mesh:
                         start_deform_2d = np.array([start_deform[0]*np.cos(angle_x) + start_deform[1]*np.sin(angle_x), start_deform[2]])
                         end_deform_2d   = np.array([end_deform[0]*np.cos(angle_x) + end_deform[1]*np.sin(angle_x), end_deform[2]])
 
-                        print(np.sqrt(start_deform[0]**2 + start_deform[1]**2), ' ', start_deform[0] * np.cos(angle_x) + start_deform[1] * np.sin(angle_x))
-                        print(np.sqrt(end_deform[0] ** 2 + end_deform[1] ** 2), ' ',
-                              end_deform[0] * np.cos(angle_x) + end_deform[1] * np.sin(angle_x))
+                        assert(abs(np.sqrt(start_deform[0]**2 + start_deform[1]**2) - (start_deform[0] * np.cos(angle_x) + start_deform[1] * np.sin(angle_x))) < 1.e-10)
+                        assert(abs(np.sqrt(end_deform[0] ** 2 + end_deform[1] ** 2) - (end_deform[0] * np.cos(angle_x) + end_deform[1] * np.sin(angle_x))) < 1.e-10)
 
                         if line_relax_method == 'circle':
                             print('have not implemented yet')
