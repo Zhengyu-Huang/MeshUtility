@@ -11,6 +11,9 @@
 #################################
 import sys
 import numpy as np
+from scipy.optimize import fsolve
+import Catenary
+
 class Elem:
     def __init__(self, id, nodes, att = 0, eframe = None):
         self.id = id
@@ -96,6 +99,30 @@ def ReadElems(file, line):
     print('ReadElems reads ', len(elems), ' ', name, ' elems')
     return file, line, elems, type, name
 
+
+def line_to_circle(theta, data):
+    a = data[0]
+    return a*theta - 2 * np.sin(theta/2.)
+
+def SplitLines(line_elems):
+    '''
+    :param line_elems:
+    :return:
+    '''
+    j_old = -1
+    line, lines = [], []
+    for i_e in range(len(line_elems)):
+        i,j = line_elems[i_e].nodes
+        if i != j_old:
+            if line:
+                lines.append(line)
+            line = [i,j]
+
+        else:
+            line.append(j)
+        j_old = j
+    lines.append(line)
+    return lines
 
 class Mesh:
     '''
@@ -361,6 +388,7 @@ class Mesh:
         r_d, R_d, h_d =  0.788, 7.7235, 39.2198 #Disk inner radius, outer radius and z
         R_b, ht_b, hb_b = 7.804, 38.3158, 35.7358 #Band radius, band top z and band bottom z
         h0 = 0
+        L_s, L_v, L_g = np.sqrt(R_b**2 + hb_b**2), r_d/2., np.sqrt((R_d - R_b)**2 + (h_d - ht_b)**2) # Suspension_Lines length ,  Vent_Lines length,    Gap_Lines length
 
         # todo the second parameter is the z displacement of band
         band_b3 = 0.0
@@ -369,6 +397,8 @@ class Mesh:
         disk_b3 = 50.0
 
         band_deform_method = 'rigid'
+
+        line_relax_method = 'catenary'
 
         ############ piece map
         theta = np.pi / n
@@ -648,7 +678,82 @@ class Mesh:
             ele = ele_set[i_es]
             ele_info = ele_set_info[i_es]
             if ele_info[1] == 2 and (ele_info[0] == 'Suspension_Lines' or ele_info[0] == 'Vent_Lines' or ele_info[0] == 'Gap_Lines'):
+                l_ref = -1.0
+                if  ele_info[0] == 'Suspension_Lines':
+                    l_ref = L_s
+                elif ele_info[0] == 'Vent_Lines':
+                    l_ref = L_v
+                elif ele_info[0] == 'Gap_Lines':
+                    l_ref = L_g
+
                 print('handle suspension lines')
+                lines = SplitLines(ele)
+                print('line number is ', len(lines))
+                for i_line in range(len(lines)):
+                    line = lines[i_line]
+                    xx_start = np.array(nodes[line[0] - 1])
+                    start_deform = np.array(nodes[line[0] - 1]) + node_disp[line[0] - 1,:]
+                    end_deform   = np.array(nodes[line[-1] - 1]) + node_disp[line[-1] - 1,:]
+
+                    cur_length = np.linalg.norm(end_deform - start_deform)
+
+                    if cur_length >= l_ref :
+                        print('current lenght is ', cur_length, ' , which is greater than its undeformed length ', l_ref)
+
+                        for i_n in range(len(line)):
+                            xx = nodes[line[i_n] - 1]
+
+                            new_xx = (1. - float(i_n) / float(len(line) - 1)) * start_deform + float(i_n) / float(len(line) - 1) * end_deform
+
+                            node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+                    else:
+                        print('current lenght is ', cur_length, ' , which is smaller than its undeformed length ', l_ref)
+
+                        # use catenary curve fitting
+                        #todo check start, end and z-axis are on the same plane
+
+
+                        angle_x = np.arctan2(start_deform[1], start_deform[0]) \
+                            if start_deform[0] ** 2 + start_deform[1] ** 2 > end_deform[0] ** 2 + end_deform[1] ** 2   \
+                            else np.arctan2(end_deform[1], end_deform[0])  # [-pi, pi]
+
+                        start_deform_2d = np.array([start_deform[0]*np.cos(angle_x) + start_deform[1]*np.sin(angle_x), start_deform[2]])
+                        end_deform_2d   = np.array([end_deform[0]*np.cos(angle_x) + end_deform[1]*np.sin(angle_x), end_deform[2]])
+
+                        print(np.sqrt(start_deform[0]**2 + start_deform[1]**2), ' ', start_deform[0] * np.cos(angle_x) + start_deform[1] * np.sin(angle_x))
+                        print(np.sqrt(end_deform[0] ** 2 + end_deform[1] ** 2), ' ',
+                              end_deform[0] * np.cos(angle_x) + end_deform[1] * np.sin(angle_x))
+
+                        if line_relax_method == 'circle':
+                            print('have not implemented yet')
+
+                            # a = fsolve(catenary, (cur_length/l_ref), np.sqrt(12 * (1. - cur_length/l_ref)))[0]
+                            # line_R = l_ref / line_theta
+                            # circle_O =
+                            # for i_n in range(len(line)):
+                            #     d_theta = float(i_n) / float(len(line)) * line_theta
+                            #
+                            #
+                            #     new_xx = (1. - float(i_n) / float(len(line))) * start_deform + float(i_n) / float(
+                            #         len(line)) * end_deform
+                            #
+                            #     node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+
+                        elif line_relax_method == 'catenary':
+
+                            a, xm, ym = Catenary.catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], l_ref)
+
+                            for i_n in range(len(line)):
+                                xx = np.array(nodes[line[i_n] - 1])
+                                ds = np.linalg.norm(xx - xx_start)
+                                new_r, new_z = Catenary.point_on_catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], a, xm, ym, l_ref, ds)
+
+                                new_xx = np.array([new_r*np.cos(angle_x), new_r*np.sin(angle_x),new_z])
+
+                                node_disp[line[i_n] - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+
+
+
 
 
         self.node_disp = node_disp
@@ -662,8 +767,9 @@ if __name__ == '__main__':
     mesh = Mesh()
 
     mesh.read_stru('Parachute_Quad_Init/mesh_Structural.top.quad')
+
+    #mesh.refine()
     mesh.folding(8)
-    # mesh.refine()
     mesh.visualize_disp()
     mesh.write_stru('mesh_Structural.top.quad', 'mesh_Structural.surfacetop.quad')
 
