@@ -393,7 +393,7 @@ class Mesh:
 
 
         # todo the second parameter is the z displacement of disk
-        disk_b3 = 2.0
+        disk_b3 = 5.0
 
         band_deform_method = 'rigid'
 
@@ -404,9 +404,8 @@ class Mesh:
 
         ################################################ This is for the disk
         # todo the first parameter is cosa in [0, 1]
-        cosa = 0.5
+        cosa = 0.1
         sina = -np.sqrt(1 - cosa * cosa)
-        # todo check can also be + sina / np.cos(theta)
         cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
         sinb = -cosa + cosb * sina * np.tan(theta)
         print('cosb^2 + sinb^2 = ', cosb * cosb + sinb * sinb)
@@ -463,19 +462,19 @@ class Mesh:
         # 1) flat
         # 2) rigid
 
-        # todo parameters about the band are z displacement of band, and r_b_deform
-        #
+
         r_b_deform, l_b_deform, R_b_deform = 0.0, 0.0, 0.0
         if band_deform_method == 'rigid':
             l_b_deform = 2*R_b*np.sin(theta/2.)
         elif band_deform_method == 'flat':
             l_b_deform = theta * R_b
 
-        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))
+        # todo parameters about the band r_b_deform
+        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))*0.95
         #todo enforce R_b_deform = R_d_deform,
         R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
 
-
+        # todo parameters about the band are z displacement of band
         band_b3 = max(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
                      disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
 
@@ -773,7 +772,10 @@ class Mesh:
                                 start_deform_2d = np.array([0,0])
                                 end_deform_2d = np.array(
                                     [(end_deform[0] - start_deform[0]) * dir_r[0] + (end_deform[1] - start_deform[1]) * dir_r[1], end_deform[2] - start_deform[2]])
+                                if not np.linalg.norm(end_deform_2d) < l_ref:
+                                    print(np.linalg.norm(end_deform_2d), ' ', l_ref)
                                 assert(np.linalg.norm(end_deform_2d) < l_ref)
+
                                 a, xm, ym = Line.catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], l_ref)
 
                                 for i_n in range(len(line)):
