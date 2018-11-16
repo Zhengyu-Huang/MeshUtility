@@ -404,7 +404,7 @@ class Mesh:
 
         ################################################ This is for the disk
         # todo the first parameter is cosa in [0, 1]
-        cosa = 0.1
+        cosa = 0.7
         sina = -np.sqrt(1 - cosa * cosa)
         cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
         sinb = -cosa + cosb * sina * np.tan(theta)
@@ -477,6 +477,10 @@ class Mesh:
         # todo parameters about the band are z displacement of band
         band_b3 = max(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
                      disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
+
+        band_b3 = 0.5*(disk_y4[2] - ht_b - np.sqrt(
+            L_g ** 2 - (disk_y4[0] - r_b_deform * np.cos(theta)) ** 2 - (disk_y4[1] - r_b_deform * np.sin(theta)) ** 2)+
+                      disk_y2[2] - ht_b - np.sqrt(L_g ** 2 - (disk_y2[0] - R_b_deform) ** 2 - disk_y2[1] ** 2))
 
         if band_deform_method == 'rigid':
             l_b_deform = 2*R_b*np.sin(theta/2.)
