@@ -840,10 +840,10 @@ if __name__ == '__main__':
 
     mesh.read_stru('Parachute_Quad_Init/mesh_Structural.top.quad')
 
-    #mesh.refine()
-    mesh.folding(8)
+    mesh.refine()
+    #mesh.folding(8)
 
-    mesh.reset_intial()
+    #mesh.reset_intial()
 
     mesh.write_stru('mesh_Structural.top.quad', 'mesh_Structural.surfacetop.quad', True)
 

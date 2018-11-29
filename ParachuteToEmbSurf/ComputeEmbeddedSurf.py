@@ -51,7 +51,12 @@ def ReadElems(file, line):
             continue
         if RepresentsInt(data[0]):
             type = len(data) - 2
-            elems.append(list(map(int, data[2:])))
+            elem_node = list(map(int, data[2:]))
+            if type == 3 or type == 2:
+                elems.append(list(map(int, data[2:])))
+            elif type == 4:
+                elems.append([elem_node[0], elem_node[1], elem_node[2]])
+                elems.append([elem_node[2], elem_node[3], elem_node[0]])
 
         else:
             break
@@ -290,7 +295,7 @@ def ReadStru(inputStru, beamPars):
         data = line.split()
         struFile, line, elems, type = ReadElems(struFile, line)
         print('Elem type is ', type)
-        if (type == 3):
+        if (type == 3 or type == 4):
             embSurfs.append(elems)
         elif (type == 2):
             bunchLines.append(elems)
@@ -370,7 +375,7 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
     fabricNodeNum = len(fabricNodes)
     nodeId[0] = fabricNodeNum
     for i in range(fabricNodeNum):
-        embFile.write('%d  %.12f  %.12f  %.12f\n' % (i + 1, fabricNodeCoord[i][0], fabricNodeCoord[i][1], fabricNodeCoord[i][2]))
+        embFile.write('%d  %.16E %.16E  %.16E\n' % (i + 1, fabricNodeCoord[fabricNodes[i]-1][0], fabricNodeCoord[fabricNodes[i]-1][1], fabricNodeCoord[fabricNodes[i]-1][2]))
 
     # Step1.2 write phantom suspension line surface nodes
     nId = fabricNodeNum
@@ -442,5 +447,5 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 0.01], inputStru='./mesh_emb.top', inputPayload='./capsule.top',
+    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 0.01], inputStru='./mesh_emb_refined_quad.top', inputPayload='./capsule.top',
                      output='embeddedSurface.top')
