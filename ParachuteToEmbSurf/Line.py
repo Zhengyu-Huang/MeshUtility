@@ -55,7 +55,7 @@ def catenary(x1, y1, x2, y2 , s):
     if a < 0:
         a = -a
     res = standard_catenary(a, s, h, v)
-    if (ler == 1 or abs(res) < 1.e-12):
+    if (ler == 1 and abs(res) < 1.e-10):
         succeed = True
     if not succeed:
         b0 = (2 * np.sqrt(6.) * np.sqrt(np.sqrt(s * s - v * v) / h - 1.))
@@ -65,7 +65,7 @@ def catenary(x1, y1, x2, y2 , s):
         if b < 0:
             b = -b
         res = standard_catenary_b(b, s, h, v)
-        if (ler == 1 or abs(res) < 1.e-12):
+        if (ler == 1 and abs(res) < 1.e-10):
             succeed = True
             a = b * h
 
@@ -74,7 +74,7 @@ def catenary(x1, y1, x2, y2 , s):
     xm, infodict, ler, mesg = fsolve(shift_catenary   , (x1 + x2)/2., (a, x1, y1, x2, y2), fprime=shift_catenary_prime, full_output=1)
     xm = xm[0]
     res = shift_catenary(xm, a, x1, y1, x2, y2)
-    if (ler != 1 or abs(res) > 1.e-6):
+    if (ler != 1 or abs(res) > 1.e-10):
         print('xm is ', xm, ' res is ', res)
     ym = y1 - a*(np.cosh((x1 - xm)/a) - 1.0)
 

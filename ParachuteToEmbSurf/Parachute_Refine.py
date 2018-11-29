@@ -297,7 +297,7 @@ class Mesh:
 
         self.ele_set = new_ele_set
 
-    def write_stru(self, stru_file_name, surf_file_name, thickness = 2.e-3):
+    def write_stru(self, stru_file_name, surf_file_name, write_idisp = False,thickness = 2.e-3):
         print('Writing mesh ...')
         stru_file = open(stru_file_name, 'w')
         surf_file = open(surf_file_name, 'w')
@@ -305,6 +305,7 @@ class Mesh:
 
         # Step1.1 write nodes
         nodes = self.nodes
+        node_disp = self.node_disp
         n_n = len(nodes)
         for i in range(n_n):
             stru_file.write('%d  %.16E  %.16E  %.16E\n' % (
@@ -359,10 +360,19 @@ class Mesh:
                          j + surf_ele_start_id, 1, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2], ele_new[j].nodes[3]))
                 surf_ele_start_id += n_e
 
+        # Step1.3 write IDISP6
+        if write_idisp:
+            stru_file.write('IDISP6\n')
+            for i_n in range(n_n):
+                #todo ignore the initial displacement
+                stru_file.write('%d %.16E  %.16E  %.16E  %.16E  %.16E  %.16E\n' %(i_n + 1, node_disp[i_n][0], node_disp[i_n][1], node_disp[i_n][2], 0.0, 0.0, 0.0))
+
+
+
         stru_file.close()
         surf_file.close()
 
-    def visualize_disp(self):
+    def reset_initial(self):
         '''
         update node coordinate to include the displacement
         :return:
@@ -372,6 +382,9 @@ class Mesh:
         nn = len(nodes)
         for i_n in range(nn):
             nodes[i_n] = nodes[i_n][0] + node_disp[i_n][0], nodes[i_n][1] + node_disp[i_n][1], nodes[i_n][2] + node_disp[i_n][2]
+
+        # reset eframe
+        print('need to rotate the eframe')
 
     def folding(self, n):
         '''
@@ -393,7 +406,7 @@ class Mesh:
 
 
         # todo the second parameter is the z displacement of disk
-        disk_b3 = 5.0
+        disk_b3 = 7.0
 
         band_deform_method = 'rigid'
 
@@ -404,7 +417,7 @@ class Mesh:
 
         ################################################ This is for the disk
         # todo the first parameter is cosa in [0, 1]
-        cosa = 0.7
+        cosa = 0.1
         sina = -np.sqrt(1 - cosa * cosa)
         cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
         sinb = -cosa + cosb * sina * np.tan(theta)
@@ -478,9 +491,9 @@ class Mesh:
         band_b3 = max(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
                      disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
 
-        band_b3 = 0.5*(disk_y4[2] - ht_b - np.sqrt(
-            L_g ** 2 - (disk_y4[0] - r_b_deform * np.cos(theta)) ** 2 - (disk_y4[1] - r_b_deform * np.sin(theta)) ** 2)+
-                      disk_y2[2] - ht_b - np.sqrt(L_g ** 2 - (disk_y2[0] - R_b_deform) ** 2 - disk_y2[1] ** 2))
+        # band_b3 = 0.5*(disk_y4[2] - ht_b - np.sqrt(
+        #     L_g ** 2 - (disk_y4[0] - r_b_deform * np.cos(theta)) ** 2 - (disk_y4[1] - r_b_deform * np.sin(theta)) ** 2)+
+        #               disk_y2[2] - ht_b - np.sqrt(L_g ** 2 - (disk_y2[0] - R_b_deform) ** 2 - disk_y2[1] ** 2))
 
         if band_deform_method == 'rigid':
             l_b_deform = 2*R_b*np.sin(theta/2.)
@@ -703,7 +716,7 @@ class Mesh:
         assert(xx[0]**2 + xx[1]**2 + (xx[2] - h_d)**2 < 1.e-10)
 
         vent_b3    = min(np.sqrt(L_v**2 - disk_y1[0]**2 - disk_y1[1]**2) + disk_y1[2] - h_d,
-                         np.sqrt(L_v**2 - disk_y3[0]**2 - disk_y3[1]**2) + disk_y3[2] - h_d)
+                         np.sqrt(L_v**2 - disk_y3[0]**2 - disk_y3[1]**2) + disk_y3[2] - h_d) - 0.001
         node_disp[vent_center_node_id - 1, :] = 0., 0., vent_b3
         ##############################################################################################################
         # Update suspension lines
@@ -730,6 +743,7 @@ class Mesh:
                     end_deform   = np.array(nodes[line[-1] - 1]) + node_disp[line[-1] - 1,:]
 
                     cur_length = np.linalg.norm(end_deform - start_deform)
+                    print('cur_length is ', cur_length, ' l_ref is ', l_ref)
 
                     if cur_length >= l_ref :
                         #print(ele_info[0], ' current lenght is ', cur_length, ' , which is greater than its undeformed length ', l_ref)
@@ -828,8 +842,10 @@ if __name__ == '__main__':
 
     #mesh.refine()
     mesh.folding(8)
-    mesh.visualize_disp()
-    mesh.write_stru('mesh_Structural.top.quad', 'mesh_Structural.surfacetop.quad')
+
+    mesh.reset_intial()
+
+    mesh.write_stru('mesh_Structural.top.quad', 'mesh_Structural.surfacetop.quad', True)
 
 
 
