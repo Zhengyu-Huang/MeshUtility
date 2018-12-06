@@ -360,7 +360,7 @@ def ReadPayload(inputPayload):
 
 def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.top', inputPayload = './capsule.top', output = 'embeddedSurface.top'):
 
-
+    print("REMINDER: NO EMPTY LINES AT THE END")
     fabricNodes, fabricNodeCoord, phantomCoords, fabricEmbSurfs, phantomTris  = ReadStru(inputStru, beamPars)
     if(type == 1):
         payloadNodes, payloadElems = ReadPayload(inputPayload)
@@ -447,5 +447,5 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 0.01], inputStru='./mesh_emb_refined_quad.top', inputPayload='./capsule.top',
+    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 0.01], inputStru='./mesh_emb_raw_refined_tria.top', inputPayload='./capsule.top',
                      output='embeddedSurface.top')

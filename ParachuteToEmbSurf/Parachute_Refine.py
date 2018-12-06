@@ -56,6 +56,7 @@ def ReadElems(file, line):
     print('\n\n*ReadElems, the first line is ', line)
     elems = []
     type = -1
+    print(line)
     name = line.split()[1]
     while line:
         line = file.readline()
@@ -76,9 +77,15 @@ def ReadElems(file, line):
             if not line or data[0][0] == '*':
                 continue
             if RepresentsInt(data[0]):
-                elems[ind].att = int(data[1])
-                assert(elems[ind].id == int(data[0]))
-                ind += 1
+                if len(data) == 2:
+                    elems[ind].att = int(data[1])
+                    assert(elems[ind].id == int(data[0]))
+                    ind += 1
+                elif len(data) == 3:
+                    for ele_id in range(int(data[0]), int(data[1]) + 1):
+                        elems[ind].att = int(data[2])
+                        assert(elems[ind].id == int(ele_id))
+                        ind += 1
 
             else:
                 break
@@ -182,7 +189,7 @@ class Mesh:
         new_ele_set = []
 
         ################   Update canopy
-        for i_es in range(n_es):
+        for i_es in range(n_es): #loop element sets, like Suspension_Lines, Band_Gores ...
             ele = ele_set[i_es]
             ele_info = ele_set_info[i_es]
             new_ele = []
@@ -232,6 +239,42 @@ class Mesh:
                     new_ele.append(Elem(id, [ele_nodes[1], new_nodes[3], new_nodes[0], new_nodes[2]], att, eframe))
                     new_ele.append(Elem(id, [ele_nodes[2], new_nodes[4], new_nodes[0], new_nodes[3]], att, eframe))
                     new_ele.append(Elem(id, [ele_nodes[3], new_nodes[1], new_nodes[0], new_nodes[4]], att, eframe))
+
+
+
+            elif ele_info[1] == 3:
+                print('tri')
+                n_e = len(ele)
+                for i_e in range(n_e):
+                    id = ele[i_e].id
+                    att = ele[i_e].att
+                    eframe = ele[i_e].eframe
+                    ele_nodes = ele[i_e].nodes
+                    new_nodes = [0, 0, 0]
+
+                    for i_n in range(ele_info[1]):
+                        if pair(ele_nodes[i_n - 1], ele_nodes[i_n]) in edge_to_center_node:
+                            # the node is exists
+                            new_nodes[i_n] = edge_to_center_node[pair(ele_nodes[i_n - 1], ele_nodes[i_n])]
+                        else:
+                            new_nodes[i_n] = n_n + 1
+                            # update map
+                            edge_to_center_node[pair(ele_nodes[i_n - 1], ele_nodes[i_n])] = n_n + 1
+                            # update node coordinate
+                            # todo
+                            new_node_coord = [(nodes[ele_nodes[i_n - 1] - 1][0] + nodes[ele_nodes[i_n] - 1][0]) / 2.0,
+                                              (nodes[ele_nodes[i_n - 1] - 1][1] + nodes[ele_nodes[i_n] - 1][1]) / 2.0,
+                                              (nodes[ele_nodes[i_n - 1] - 1][2] + nodes[ele_nodes[i_n] - 1][2]) / 2.0]
+
+                            nodes.append(new_node_coord)
+
+                            n_n += 1
+
+                    new_ele.append(Elem(id, [new_nodes[0], ele_nodes[0], new_nodes[1]], att, eframe))
+                    new_ele.append(Elem(id, [new_nodes[1], ele_nodes[1], new_nodes[2]], att, eframe))
+                    new_ele.append(Elem(id, [new_nodes[2], ele_nodes[2], new_nodes[0]], att, eframe))
+                    new_ele.append(Elem(id, [new_nodes[0], new_nodes[1], new_nodes[2]], att, eframe))
+
 
             new_ele_set.append(new_ele)
 
@@ -305,7 +348,7 @@ class Mesh:
 
         # Step1.1 write nodes
         nodes = self.nodes
-        node_disp = self.node_disp
+
         n_n = len(nodes)
         for i in range(n_n):
             stru_file.write('%d  %.16E  %.16E  %.16E\n' % (
@@ -326,12 +369,18 @@ class Mesh:
             type = fem_type = ele_info[1]
             if type == 2:
                 fem_type = 6
+            elif type == 3:
+                fem_type = 15
             elif type == 4:
                 fem_type = 16
-
+                
             for j in range(n_e):
+                assert(ele_new[j].att == ele_new[0].att)
                 if (type == 2):
                     stru_file.write('%d  %d  %d  %d\n' % (stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1]))
+                if (type == 3):
+                    stru_file.write(
+                        '%d  %d  %d  %d  %d\n' % (stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]))
                 if (type == 4):
                     stru_file.write(
                         '%d  %d  %d  %d  %d  %d\n' % (stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2], ele_new[j].nodes[3]))
@@ -360,8 +409,20 @@ class Mesh:
                          j + surf_ele_start_id, 1, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2], ele_new[j].nodes[3]))
                 surf_ele_start_id += n_e
 
+            elif (type == 3):
+                name = ele_info[0]
+                surf_id = 1 if name == 'Disk_Gores' else 2
+                surf_file.write('SURFACETOPO %d SURFACE_THICKNESS %.16E\n' %(surf_id, thickness))
+
+                for j in range(n_e):
+                    surf_file.write(
+                        '%d  %d  %d  %d  %d\n' % (
+                         j + surf_ele_start_id, 1, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]))
+                surf_ele_start_id += n_e
+
         # Step1.3 write IDISP6
         if write_idisp:
+            node_disp = self.node_disp
             stru_file.write('IDISP6\n')
             for i_n in range(n_n):
                 #todo ignore the initial displacement
@@ -837,15 +898,15 @@ class Mesh:
 
 if __name__ == '__main__':
     mesh = Mesh()
-
-    mesh.read_stru('Parachute_Quad_Init/mesh_Structural.top.quad')
+    suffix = '.tria'
+    mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
     mesh.refine()
     #mesh.folding(8)
 
     #mesh.reset_intial()
 
-    mesh.write_stru('mesh_Structural.top.quad', 'mesh_Structural.surfacetop.quad', True)
+    mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, False)
 
 
 
