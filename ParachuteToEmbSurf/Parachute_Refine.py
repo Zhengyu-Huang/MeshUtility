@@ -136,10 +136,11 @@ class Mesh:
     #  nodes set
     #  topology set
     '''
-    def __init__(self):
+    def __init__(self, fabric_elem_type = 4):
         self.nodes = None
         self.ele_set = []
         self.ele_set_info = []
+        self.fabric_elem_type = fabric_elem_type
 
     def read_stru(self, file_name):
         '''
@@ -370,7 +371,7 @@ class Mesh:
             if type == 2:
                 fem_type = 6
             elif type == 3:
-                fem_type = 15
+                fem_type = 129  #todo membrane 129
             elif type == 4:
                 fem_type = 16
                 
@@ -417,7 +418,7 @@ class Mesh:
                 for j in range(n_e):
                     surf_file.write(
                         '%d  %d  %d  %d  %d\n' % (
-                         j + surf_ele_start_id, 1, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]))
+                         j + surf_ele_start_id, 3, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]))
                 surf_ele_start_id += n_e
 
         # Step1.3 write IDISP6
@@ -467,7 +468,7 @@ class Mesh:
 
 
         # todo the second parameter is the z displacement of disk
-        disk_b3 = 7.0
+        disk_b3 = 8.0
 
         band_deform_method = 'rigid'
 
@@ -477,8 +478,8 @@ class Mesh:
         theta = np.pi / n
 
         ################################################ This is for the disk
-        # todo the first parameter is cosa in [0, 1]
-        cosa = 0.1
+        # todo the first parameter is cosa in [0, 1], the smaller cosa the more folded
+        cosa = 0.4 # 0.3, 0.2
         sina = -np.sqrt(1 - cosa * cosa)
         cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
         sinb = -cosa + cosb * sina * np.tan(theta)
@@ -544,12 +545,18 @@ class Mesh:
             l_b_deform = theta * R_b
 
         # todo parameters about the band r_b_deform
-        r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))*0.95
-        #todo enforce R_b_deform = R_d_deform,
+        # R < r
+        # if you need to enforce R_b_deform = R_d_deform,
+        # r_b_deform = (R_d_bottom_deform*np.cos(theta) + np.sqrt(l_b_deform**2 - R_d_bottom_deform**2*np.sin(theta)**2))
+
+        r_b_deform = (
+        R_d_bottom_deform * np.cos(theta) + np.sqrt(l_b_deform ** 2 - R_d_bottom_deform ** 2 * np.sin(theta) ** 2))
+
         R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
 
         # todo parameters about the band are z displacement of band
-        band_b3 = max(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
+        # make sure no line is stretched
+        band_b3 = min(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
                      disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
 
         # band_b3 = 0.5*(disk_y4[2] - ht_b - np.sqrt(
@@ -621,7 +628,7 @@ class Mesh:
         for i_es in range(n_es):
             ele = ele_set[i_es]
             ele_info = ele_set_info[i_es]
-            if ele_info[1] == 4 and ele_info[0] == 'Disk_Gores':
+            if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Disk_Gores':
                 n_e = len(ele)
                 for i_e in range(n_e):
                     ele_nodes = ele[i_e].nodes
@@ -639,7 +646,7 @@ class Mesh:
 
                         node_disp[i_n - 1,:] =  new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
-            if ele_info[1] == 4 and ele_info[0] == 'Band_Gores':
+            if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Band_Gores':
                 n_e = len(ele)
                 if band_deform_method == 'rigid':
                     for i_e in range(n_e):
@@ -697,7 +704,7 @@ class Mesh:
         for i_es in range(n_es):
             ele = ele_set[i_es]
             ele_info = ele_set_info[i_es]
-            if ele_info[1] == 4 and ele_info[0] == 'Disk_Gores':
+            if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Disk_Gores':
                 n_e = len(ele)
                 for i_e in range(n_e):
                     ele_nodes = ele[i_e].nodes
@@ -715,7 +722,7 @@ class Mesh:
 
                         node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
-            if ele_info[1] == 4 and ele_info[0] == 'Band_Gores':
+            if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Band_Gores':
                 n_e = len(ele)
                 if band_deform_method == 'rigid':
                     for i_e in range(n_e):
@@ -772,9 +779,10 @@ class Mesh:
         ##############################################################################################################
         # Update vent_center point
         ##############################################################################################################
-        vent_center_node_id = 48842
+
+        vent_center_node_id = 48842 if self.fabric_elem_type == 4 else 55960
         xx = nodes[vent_center_node_id - 1]
-        assert(xx[0]**2 + xx[1]**2 + (xx[2] - h_d)**2 < 1.e-10)
+        print(xx[0]**2 + xx[1]**2 + (xx[2] - h_d)**2,  " is smaller than ", 1.e-10)
 
         vent_b3    = min(np.sqrt(L_v**2 - disk_y1[0]**2 - disk_y1[1]**2) + disk_y1[2] - h_d,
                          np.sqrt(L_v**2 - disk_y3[0]**2 - disk_y3[1]**2) + disk_y3[2] - h_d) - 0.001
@@ -853,7 +861,7 @@ class Mesh:
                                     [(end_deform[0] - start_deform[0]) * dir_r[0] + (end_deform[1] - start_deform[1]) * dir_r[1], end_deform[2] - start_deform[2]])
                                 if not np.linalg.norm(end_deform_2d) < l_ref:
                                     print(np.linalg.norm(end_deform_2d), ' ', l_ref)
-                                assert(np.linalg.norm(end_deform_2d) < l_ref)
+                                print(np.linalg.norm(end_deform_2d), " smaller than ",  l_ref)
 
                                 a, xm, ym = Line.catenary(start_deform_2d[0], start_deform_2d[1], end_deform_2d[0], end_deform_2d[1], l_ref)
 
@@ -897,16 +905,16 @@ class Mesh:
 
 
 if __name__ == '__main__':
-    mesh = Mesh()
+    mesh = Mesh(3)
     suffix = '.tria'
     mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-    mesh.refine()
-    #mesh.folding(8)
+    #mesh.refine()
+    mesh.folding(40)
 
-    #mesh.reset_intial()
+    mesh.reset_initial()
 
-    mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, False)
+    mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
 
 
 

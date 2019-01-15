@@ -447,5 +447,5 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 0.01], inputStru='./mesh_emb_raw_refined_tria.top', inputPayload='./capsule.top',
+    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 1.6e-3], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
                      output='embeddedSurface.top')
