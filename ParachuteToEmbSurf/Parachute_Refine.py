@@ -371,7 +371,7 @@ class Mesh:
             if type == 2:
                 fem_type = 6
             elif type == 3:
-                fem_type = 129  #todo membrane 129
+                fem_type = 129  #todo membrane 129, shell 15
             elif type == 4:
                 fem_type = 16
                 
@@ -468,7 +468,7 @@ class Mesh:
 
 
         # todo the second parameter is the z displacement of disk
-        disk_b3 = 8.0
+        disk_b3 = 7.5
 
         band_deform_method = 'rigid'
 
@@ -556,7 +556,7 @@ class Mesh:
 
         # todo parameters about the band are z displacement of band
         # make sure no line is stretched
-        band_b3 = min(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
+        band_b3 = max(disk_y4[2] - ht_b - np.sqrt(L_g**2  - (disk_y4[0] - r_b_deform*np.cos(theta))**2 - (disk_y4[1] - r_b_deform*np.sin(theta))**2),
                      disk_y2[2] - ht_b - np.sqrt(L_g**2  - (disk_y2[0] - R_b_deform)**2 - disk_y2[1]**2))
 
         # band_b3 = 0.5*(disk_y4[2] - ht_b - np.sqrt(
@@ -912,7 +912,7 @@ if __name__ == '__main__':
     #mesh.refine()
     mesh.folding(40)
 
-    mesh.reset_initial()
+    #mesh.reset_initial()
 
     mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
 

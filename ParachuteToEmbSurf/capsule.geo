@@ -5,7 +5,10 @@ cl_shoulder = 0.025;
 //Point (xa, ya) is on the top circle, modify it to change the size of the capsule. 
 //xa = -0.31142370413265841
 xa = -0.31142370413265841;
-za = -8.895;
+//The position of the capsule
+//zshift = -4.7487995381941190e+01;
+zshift = 0.0;
+za = -8.895 + zshift;
 xb = -xa;
 
 

@@ -51,6 +51,7 @@ def catenary(x1, y1, x2, y2 , s):
     succeed = False
     a0 = h
     a, infodict, ler, mesg = fsolve(standard_catenary, a0, (s, h, v), fprime=standard_catenary_prime, full_output=1)
+    print(a)
     a = a[0]
     if a < 0:
         a = -a
