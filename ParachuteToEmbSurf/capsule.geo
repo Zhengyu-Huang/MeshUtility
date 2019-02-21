@@ -57,7 +57,6 @@ nose_z_b *= scale;
 
 
 
-Point(6) = {xa,0, za,cl_capsule};
 Point(7) = {0 + xa + x1,0, 0 +za - z1,cl_capsule};
 Point(8) = {x1 + xa + x1,0,z1 +za - z1,cl_capsule};
 Point(9) = {x2 + xa + x1,0,z2 +za - z1,cl_capsule};
@@ -69,17 +68,8 @@ Point(13) = {x4 + xa + x1 - shoulder_l*Cos(20.0*Pi/180),0,z4 +za - z1 - shoulder
 
 Point(14) = {o_x + xa + x1,0,o_z +za - z1,cl_capsule};
 Point(15) = {nose_x_a + xa + x1,0,nose_z_a +za - z1,cl_capsule};
-Point(16) = {nose_x_b + xa + x1,0,nose_z_b +za - z1,cl_capsule};
 
-//left shoulder corner
-Point(17) = {-x4 + xa + x1 + shoulder_h*Cos((shoulder_theta/2.0 - 20.0)*Pi/180), 0,z4 +za - z1 + shoulder_h*Sin((shoulder_theta/2.0 - 20.0)*Pi/180),cl_shoulder};
-Point(18) = {-x4 + xa + x1 + shoulder_l*Cos(53.1*Pi/180), 0, z4 +za - z1 + shoulder_l*Sin(53.1*Pi/180),cl_shoulder};
-Point(19) = {-x4 + xa + x1 + shoulder_l*Cos(20.0*Pi/180), 0, z4 +za - z1 - shoulder_l*Sin(20.0*Pi/180),cl_shoulder};
-
-Point(20) = {-x3 + xa + x1,0,z3 +za - z1,cl_capsule};
-Point(21) = {-x2 + xa + x1,0,z2 +za - z1,cl_capsule};
-
-
+Point(16) = {o_x + xa + x1,0, o_z - 1.125 +za - z1,cl_capsule};
 
 
 Printf("z_min is %g",nose_z_a +za - z1);
@@ -108,26 +98,26 @@ Line(6) = {13, 15};
 
 //+
 Circle(7) = {15, 14, 16};
-//+
-Line(8) = {16, 19};
-//+
-Circle(9) = {19, 17, 18};
-//+
-Line(10) = {18, 20};
-//+
-Line(11) = {20, 21};
-//+
-Line(12) = {21, 6};
-//+
-Line(13) = {6, 7};
+
 
 //+
 Extrude {{0, 0, 1}, {0, 0, 0}, Pi/2} {
-  Line{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+  Line{1, 2, 3, 4, 5, 6, 7};
 }
-//+
+
 Extrude {{0, 0, 1}, {0, 0, 0}, Pi/2} {
-  Line{61, 57, 53, 49, 45, 41, 37, 33, 29, 25, 21, 17, 14};
+  Line{8, 11, 15, 19, 23, 27, 31};
 }
-//+
-Physical Surface("CapsuleSurface") = {66, 63, 113, 16, 70, 60, 110, 20, 24, 74, 56, 106, 28, 78, 52, 102, 32, 82, 48, 98, 36, 94, 44, 86, 90, 40};
+
+Extrude {{0, 0, 1}, {0, 0, 0}, Pi/2} {
+  Line{34, 37, 41, 45, 49, 53, 57};
+}
+
+
+Extrude {{0, 0, 1}, {0, 0, 0}, Pi/2} {
+  Line{60, 63, 67, 71, 75, 79, 83};
+}
+
+
+
+Physical Surface("CapsuleSurface") = {88, 62, 36, 10, 66, 40, 14, 92, 70, 44, 18, 96, 100, 74, 48, 22, 78, 52, 26, 104, 108, 30, 56, 82, 111, 33, 59, 85};

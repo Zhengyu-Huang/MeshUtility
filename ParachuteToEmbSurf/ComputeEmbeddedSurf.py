@@ -94,6 +94,7 @@ def LineDressing(line_coord, r, shape):
     :param skip:
     :return:
     '''
+    print("In LineDressing, the line coord shape is ", np.shape(line_coord))
     n = np.shape(line_coord)[0]
     phantom_coord = np.empty(shape=[2 + n   * shape, 3], dtype=float)
     phantom_tris =  np.empty(shape=[2*shape*n, 3], dtype=float)
@@ -359,6 +360,7 @@ def ReadPayload(inputPayload):
 
 
 def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.top', inputPayload = './capsule.top', output = 'embeddedSurface.top'):
+    # beamPars[2] is the radius
 
     print("REMINDER: NO EMPTY LINES AT THE END")
     fabricNodes, fabricNodeCoord, phantomCoords, fabricEmbSurfs, phantomTris  = ReadStru(inputStru, beamPars)
@@ -447,5 +449,10 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    ParachuteEmbSurf(type = 1, beamPars=[1, 4, 1.6e-3], inputStru='./mesh_emb_raw_triangle_folded.top', inputPayload='./capsule.top',
+    # ParachuteEmbSurf(type = 1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
+    #                  output='embeddedSurface.top')
+
+
+    ParachuteEmbSurf(type=1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_quad.top',
+                     inputPayload='./capsule.top',
                      output='embeddedSurface.top')

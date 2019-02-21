@@ -371,7 +371,7 @@ class Mesh:
             if type == 2:
                 fem_type = 6
             elif type == 3:
-                fem_type = 129  #todo membrane 129, shell 15
+                fem_type = 15 #todo membrane 129, shell 15
             elif type == 4:
                 fem_type = 16
                 
@@ -781,6 +781,7 @@ class Mesh:
         ##############################################################################################################
 
         vent_center_node_id = 48842 if self.fabric_elem_type == 4 else 55960
+        
         xx = nodes[vent_center_node_id - 1]
         print(xx[0]**2 + xx[1]**2 + (xx[2] - h_d)**2,  " is smaller than ", 1.e-10)
 
@@ -905,16 +906,29 @@ class Mesh:
 
 
 if __name__ == '__main__':
-    mesh = Mesh(3)
-    suffix = '.tria'
-    mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
+    element_type = 4
+    if element_type == 3:
+        mesh = Mesh(3)
+        suffix = '.tria'
+        mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-    #mesh.refine()
-    mesh.folding(40)
+        #mesh.refine()
+        mesh.folding(40)
 
-    #mesh.reset_initial()
+        #mesh.reset_initial()
 
-    mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
+        mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
+    elif element_type == 4:
+        mesh = Mesh(4)
+        suffix = '.quad'
+        mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
+
+        #mesh.refine()
+        mesh.folding(40)
+
+        #mesh.reset_initial()
+
+        mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
 
 
 
