@@ -781,7 +781,7 @@ class Mesh:
         ##############################################################################################################
 
         vent_center_node_id = 48842 if self.fabric_elem_type == 4 else 55960
-        
+
         xx = nodes[vent_center_node_id - 1]
         print(xx[0]**2 + xx[1]**2 + (xx[2] - h_d)**2,  " is smaller than ", 1.e-10)
 

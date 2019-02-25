@@ -86,20 +86,24 @@ def SplitLines(line_elems):
 
 
 
-def LineDressing(line_coord, r, shape):
+def LineDressing(line_coord, r, shape, A = None, B = None):
     '''
     :param line_coord:
     :param r:
     :param shape:
     :param skip:
+    :param close_or_not:  the tube is closed or not
+    :param A, B specify the top and bottom center node if the tube is closed
     :return:
     '''
     print("In LineDressing, the line coord shape is ", np.shape(line_coord))
     n = np.shape(line_coord)[0]
     phantom_coord = np.empty(shape=[2 + n   * shape, 3], dtype=float)
     phantom_tris =  np.empty(shape=[2*shape*n, 3], dtype=float)
-    A = line_coord[0, :]
-    B = line_coord[-1 , :]
+    if A is None or B is None:
+        A = line_coord[0, :]
+        B = line_coord[-1 , :]
+
     nx, ny, nz = dir = (B - A) / np.linalg.norm(B - A)  # direction of AB
     e1 = np.array([1.0, 0.0, 0.0], dtype=float)
     e2 = np.array([0.0, 1.0, 0.0], dtype=float)
@@ -326,7 +330,9 @@ def ReadStru(inputStru, beamPars):
             line_coord = np.empty([len(line) - 2 * skip, 3], dtype=float)
             for j in range(len(line) - 2 * skip):
                 line_coord[j, :] = nodes[line[j + skip] - 1]
-            phantomCoord, phantomTri = LineDressing(line_coord, r, shape)
+            A = np.array(nodes[line[skip - 1] - 1])
+            B = np.array(nodes[line[len(line) - skip] - 1])
+            phantomCoord, phantomTri = LineDressing(line_coord, r, shape, A, B)
 
             phantomCoords[i].append(phantomCoord)
             phantomTris[i].append(phantomTri)
@@ -449,10 +455,10 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    # ParachuteEmbSurf(type = 1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
+    ParachuteEmbSurf(type = 1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
+                      output='embeddedSurface.top')
+
+
+    # ParachuteEmbSurf(type=1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_quad.top',
+    #                  inputPayload='./capsule.top',
     #                  output='embeddedSurface.top')
-
-
-    ParachuteEmbSurf(type=1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_quad.top',
-                     inputPayload='./capsule.top',
-                     output='embeddedSurface.top')
