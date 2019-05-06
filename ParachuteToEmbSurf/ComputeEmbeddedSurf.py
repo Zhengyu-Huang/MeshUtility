@@ -86,7 +86,7 @@ def SplitLines(line_elems):
 
 
 
-def LineDressing(line_coord, r, shape, A = None, B = None):
+def LineDressing(line_coord, r, shape, close_or_not = True, A = None, B = None):
     '''
     :param line_coord:
     :param r:
@@ -98,8 +98,9 @@ def LineDressing(line_coord, r, shape, A = None, B = None):
     '''
     print("In LineDressing, the line coord shape is ", np.shape(line_coord))
     n = np.shape(line_coord)[0]
-    phantom_coord = np.empty(shape=[2 + n   * shape, 3], dtype=float)
-    phantom_tris =  np.empty(shape=[2*shape*n, 3], dtype=float)
+
+    phantom_coord = np.empty(shape=[2*close_or_not + n   * shape, 3], dtype=float)
+    phantom_tris =  np.empty(shape=[2*shape*(n + close_or_not - 1), 3], dtype=float)
     if A is None or B is None:
         A = line_coord[0, :]
         B = line_coord[-1 , :]
@@ -131,30 +132,34 @@ def LineDressing(line_coord, r, shape, A = None, B = None):
     else:
         print('error in LineDressing')
 
+    if close_or_not:
+        phantom_coord[0,:],phantom_coord[-1,:] = A,B
 
-    phantom_coord[0,:],phantom_coord[-1,:] = A,B
+
     for j in range(1, shape):
         phantom_dr[j, :] = np.dot(R, phantom_dr[j - 1, :])
 
     for i in range(n):
         for j in range(shape):
-            phantom_coord[i * shape + j + 1, :] = line_coord[i, :] + phantom_dr[j, :]
+            phantom_coord[i * shape + j + close_or_not, :] = line_coord[i, :] + phantom_dr[j, :]
 
 
     #Bottom
-    for j in range(shape):
-        phantom_tris[j , :] = 0,  (j+1)%shape + 1 , j+1
+    if close_or_not:
+        for j in range(shape):
+            phantom_tris[j , :] = 0,  (j+1)%shape + 1 , j+1
 
     for i in range(n - 1):
         for j in range(shape):
-            phantom_tris[shape + 2 * i * shape + 2 * j, :]     = shape*i + j + 1 , shape*i + (j+1)%shape + 1 , shape*i + (j+1) + shape
-            phantom_tris[shape + 2 * i * shape + 2 * j + 1, :] = shape*i + (j+1)%shape + 1 , shape*i + shape + (j+1)%shape + 1 , shape*i + (j+1) + shape
+            phantom_tris[shape*close_or_not + 2 * i * shape + 2 * j, :]     = shape*i + j + close_or_not , shape*i + (j+1)%shape + close_or_not , shape*i + (j+1) + shape + close_or_not - 1
+            phantom_tris[shape*close_or_not + 2 * i * shape + 2 * j + 1, :] = shape*i + (j+1)%shape + close_or_not , shape*i + shape + (j+1)%shape + close_or_not , shape*i + (j+1) + shape + close_or_not - 1
 
 
 
     #Top
-    for j in range(shape):
-        phantom_tris[-1 - j, :] = shape*n + 1,  shape*n - shape + j + 1, shape*n - shape + (j + 1)%shape + 1
+    if close_or_not:
+        for j in range(shape):
+            phantom_tris[-1 - j, :] = shape*n + 1,  shape*n - shape + j + 1, shape*n - shape + (j + 1)%shape + 1
 
     return phantom_coord, phantom_tris
 
@@ -286,7 +291,7 @@ def ReadStru(inputStru, beamPars):
         print("File '%s' not found." % inputStru)
         sys.exit()
 
-    skip, shape, r = beamPars
+    skip, shape, r, close_or_not = beamPars
     nodes = []
     embSurfs = []
     bunchLines = []
@@ -332,7 +337,7 @@ def ReadStru(inputStru, beamPars):
                 line_coord[j, :] = nodes[line[j + skip] - 1]
             A = np.array(nodes[line[skip - 1] - 1])
             B = np.array(nodes[line[len(line) - skip] - 1])
-            phantomCoord, phantomTri = LineDressing(line_coord, r, shape, A, B)
+            phantomCoord, phantomTri = LineDressing(line_coord, r, shape, close_or_not, A, B)
 
             phantomCoords[i].append(phantomCoord)
             phantomTris[i].append(phantomTri)
@@ -453,12 +458,123 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
           '] payload elems: [', elemId[1] + 1, ' , ', elemId[2], ']')
     embFile.close()
 
+
+def ParachuteEmbSurfGoreSplit(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.top', inputPayload = './capsule.top', output = 'embeddedSurface.top'):
+    # beamPars[2] is the radius
+
+    print("REMINDER: NO EMPTY LINES AT THE END")
+    fabricNodes, fabricNodeCoord, phantomCoords, fabricEmbSurfs, phantomTris  = ReadStru(inputStru, beamPars)
+    if(type == 1):
+        payloadNodes, payloadElems = ReadPayload(inputPayload)
+
+
+    print('Writing mesh ...')
+    embFile = open(output, 'w')
+    embFile.write('Nodes nodeset\n')
+
+    nodeId = [0, 0, 0]
+    #Step1.1 write fabric nodes
+    fabricNodeNum = len(fabricNodes)
+    nodeId[0] = fabricNodeNum
+    for i in range(fabricNodeNum):
+        embFile.write('%d  %.16E %.16E  %.16E\n' % (i + 1, fabricNodeCoord[fabricNodes[i]-1][0], fabricNodeCoord[fabricNodes[i]-1][1], fabricNodeCoord[fabricNodes[i]-1][2]))
+
+    # Step1.2 write phantom suspension line surface nodes
+    nId = fabricNodeNum
+    # write nodes
+    for i in range(len(phantomCoords)):
+        for j in range(len(phantomCoords[i])):
+            phantomCoord = phantomCoords[i][j]
+            for k in range(len(phantomCoord)):
+                nId += 1
+                embFile.write(
+                    '%d  %.12f  %.12f  %.12f\n' % (nId, phantomCoord[k, 0], phantomCoord[k, 1], phantomCoord[k, 2]))
+    nodeId[1] = nId
+    # Step1.3 write payload surface nodes
+    if (type == 1):
+        # write nodes
+        for i in range(len(payloadNodes)):
+            embFile.write('%d  %.12f  %.12f  %.12f\n' % (i + nId + 1, payloadNodes[i][0], payloadNodes[i][1], payloadNodes[i][2]))
+        nodeId[2] = len(payloadNodes) + nId + 1
+
+    print('fabric nodes:[', 1, ' , ', nodeId[0],
+          '] phantom suspension line nodes: [', nodeId[0]+1, ' , ', nodeId[1],
+          '] payload nodes: [', nodeId[1]+1, ' , ', nodeId[2], ']')
+
+    # Step2.1 write fabric surface elems
+    elemId = [0,0,0]
+    fabricNodesMap = {}
+    for i in range(len(fabricNodes)):
+        fabricNodesMap[fabricNodes[i]] = i + 1
+    nS = 0
+
+    GORENUM = 80
+    for fabricId in range(len(fabricEmbSurfs)):
+        print('fabricId is ', fabricId)
+        gores = [[] for x in range(GORENUM)]
+        for i in range(len(fabricEmbSurfs[fabricId])):
+            n1, n2, n3 = fabricNodesMap[fabricEmbSurfs[fabricId][i][0]], fabricNodesMap[fabricEmbSurfs[fabricId][i][1]], \
+                         fabricNodesMap[fabricEmbSurfs[fabricId][i][2]]
+            center = (np.array(fabricNodeCoord[fabricNodes[n1 - 1] - 1]) + np.array(fabricNodeCoord[fabricNodes[n2 - 1] - 1]) + np.array(
+                fabricNodeCoord[fabricNodes[n3 - 1] - 1])) / 3.0
+            theta = np.arctan2(center[1], center[0])
+            if theta < 0:
+                theta = 2*np.pi + theta
+
+            goreTheta = 2*np.pi/GORENUM
+
+            gores[ int(theta/goreTheta)].append([n1,n2,n3])
+
+
+        for goreId in range(GORENUM): #80 Gores for each fabric
+            embFile.write('Elements StickMovingSurface_%d using nodeset\n' % (goreId + fabricId * GORENUM + 1))
+
+            for n1, n2, n3 in gores[goreId]:
+                nS += 1
+                embFile.write('%d  4  %d  %d  %d\n' % (nS, n1, n2, n3))
+    elemId[0] = nS
+
+
+    nType = len(fabricEmbSurfs) * GORENUM
+    # Step2.2 write suspension line phantom surface elems
+    firstNode = nodeId[0] + 1
+    for i in range(len(phantomCoords)):
+        nType += 1
+        embFile.write('Elements StickMovingSurface_%d using nodeset\n' % (nType + 1))
+        for j in range(len(phantomTris[i])):
+
+            phantomCoord = phantomCoords[i][j]
+            phantomTri = phantomTris[i][j]
+            for k in range(len(phantomTri)):
+                nS += 1
+                embFile.write('%d  4 %d  %d  %d\n' % (
+                nS, firstNode + phantomTri[k, 0], firstNode + phantomTri[k, 1], firstNode + phantomTri[k, 2]))
+            firstNode += len(phantomCoord)
+    elemId[1] = nS
+    # Step2.3 write payload surface elems
+    if(type == 1):
+        firstNode = nodeId[1]
+        nType += 1
+        embFile.write('Elements StickFixedSurface_%d using nodeset\n' % (nType + 1))
+        for i in range(len(payloadElems)):
+            nS += 1
+            embFile.write('%d  4 %d  %d  %d\n' % (
+                        nS, firstNode + payloadElems[i][0], firstNode + payloadElems[i][1], firstNode + payloadElems[i][2]))
+            elemId[2] = nS
+
+    print('fabric elems:[', 1, ' , ', elemId[0],
+          '] phantom suspension line elems: [', elemId[0] + 1, ' , ', elemId[1],
+          '] payload elems: [', elemId[1] + 1, ' , ', elemId[2], ']')
+    embFile.close()
+
 if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
-    ParachuteEmbSurf(type = 1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
-                      output='embeddedSurface.top')
+    d = 3.175e-3
+    r = d/2.0
+    # ParachuteEmbSurf(type = 1, beamPars=[12, 6, r], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
+    #                   output='embeddedSurface.top')
 
 
-    # ParachuteEmbSurf(type=1, beamPars=[12, 6, 3.175e-3], inputStru='./mesh_emb_raw_quad.top',
-    #                  inputPayload='./capsule.top',
-    #                  output='embeddedSurface.top')
+    ParachuteEmbSurf(type=1, beamPars=[12, 6, r, True], inputStru='./mesh_Structural.top.tria.part.part_2',
+                     inputPayload='./capsule.top',
+                     output='embeddedSurface.top')

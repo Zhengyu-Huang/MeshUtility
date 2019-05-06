@@ -912,7 +912,8 @@ if __name__ == '__main__':
         suffix = '.tria'
         mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-        #mesh.refine()
+        mesh.refine()
+        mesh.refine()
         mesh.folding(40)
 
         #mesh.reset_initial()
@@ -923,7 +924,8 @@ if __name__ == '__main__':
         suffix = '.quad'
         mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-        #mesh.refine()
+        mesh.refine()
+        mesh.refine()
         mesh.folding(40)
 
         #mesh.reset_initial()
