@@ -434,6 +434,174 @@ class Mesh:
         stru_file.close()
         surf_file.close()
 
+    def write_stru_split_gores(self, stru_file_name, surf_file_name, write_idisp=False, thickness=2.e-3):
+        print('Writing mesh ...')
+        stru_file = open(stru_file_name, 'w')
+        surf_file = open(surf_file_name, 'w')
+        stru_file.write('NODES\n')
+
+        # Step1.1 write nodes
+        nodes = self.nodes
+
+        n_n = len(nodes)
+        for i in range(n_n):
+            stru_file.write('%d  %.16E  %.16E  %.16E\n' % (
+                i + 1, nodes[i][0], nodes[i][1], nodes[i][2]))
+
+        # Step1.2 write TOPOLOGY
+        ele_set = self.ele_set
+        ele_set_info = self.ele_set_info
+        n_es = len(ele_set)
+        stru_ele_start_id = 1
+        surf_ele_start_id = 1
+        for i in range(n_es):
+            ele_new = ele_set[i]
+            ele_info = ele_set_info[i]
+            stru_file.write('*  %s\n' % ele_info[0])
+            stru_file.write('TOPOLOGY\n')
+            n_e = len(ele_new)
+            type = fem_type = ele_info[1]
+            if type == 2:
+                fem_type = 6
+            elif type == 3:
+                fem_type = 15  # todo membrane 129, shell 15
+            elif type == 4:
+                fem_type = 16
+
+            for j in range(n_e):
+                assert (ele_new[j].att == ele_new[0].att)
+                if (type == 2):
+                    stru_file.write('%d  %d  %d  %d\n' % (
+                    stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1]))
+                if (type == 3):
+                    stru_file.write(
+                        '%d  %d  %d  %d  %d\n' % (
+                        stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]))
+                if (type == 4):
+                    stru_file.write(
+                        '%d  %d  %d  %d  %d  %d\n' % (
+                        stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2],
+                        ele_new[j].nodes[3]))
+            stru_file.write('ATTRIBUTES\n')
+            for j in range(n_e):
+                stru_file.write('%d  %d\n' % (stru_ele_start_id + j, ele_new[j].att))
+
+            if (type == 2):  # beam elements need EFRAMES
+                stru_file.write('EFRAMES\n')
+                for j in range(n_e):
+                    stru_file.write(
+                        '%d  %.16E  %.16E  %.16E  %.16E  %.16E  %.16E  %.16E  %.16E  %.16E\n' % (stru_ele_start_id + j,
+                                                                                                 ele_new[j].eframe[0],
+                                                                                                 ele_new[j].eframe[1],
+                                                                                                 ele_new[j].eframe[2],
+                                                                                                 ele_new[j].eframe[3],
+                                                                                                 ele_new[j].eframe[4],
+                                                                                                 ele_new[j].eframe[5],
+                                                                                                 ele_new[j].eframe[6],
+                                                                                                 ele_new[j].eframe[7],
+                                                                                                 ele_new[j].eframe[8]))
+
+            stru_ele_start_id += n_e
+            ############Write Sufrace top
+            if (type == 4):
+                name = ele_info[0]
+                surf_id = 1 if name == 'Disk_Gores' else 2
+
+                GORENUM = 80
+                goreTheta = 2 * np.pi / GORENUM
+                gores = [[] for x in range(GORENUM)]
+                for j in range(n_e):
+                    n1, n2, n3, n4 = ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2], ele_new[j].nodes[3]
+                    x1, y1 = nodes[n1 - 1][0], nodes[n1 - 1][1]
+                    x2, y2 = nodes[n2 - 1][0], nodes[n2 - 1][1]
+                    x3, y3 = nodes[n3 - 1][0], nodes[n3 - 1][1]
+                    x4, y4 = nodes[n4 - 1][0], nodes[n4 - 1][1]
+                    l1, l2, l3, l4 = np.sqrt(x1**2 + y1**2), np.sqrt(x2**2 + y2**2), np.sqrt(x3**2 + y3**2), np.sqrt(x4**2 + y4**2)
+
+
+
+
+                    xc, yc = (x1 + x2 + x3 + x4) / 4.0, (y1 + y2 + y3 + y4) / 4.0
+                    theta = np.arctan2(yc, xc)
+                    if theta < 0:
+                        theta = 2 * np.pi + theta
+                    goreId = int(theta / goreTheta)
+                    eps = 1.e-4
+                    if (goreId % 2 == 0 and ((abs(y1/l1 - np.sin(goreId*goreTheta)) < eps and abs(x1/l1 - np.cos(goreId*goreTheta)) < eps)
+                                          or (abs(y2/l2 - np.sin(goreId*goreTheta)) < eps and abs(x2/l2 - np.cos(goreId*goreTheta)) < eps)
+                                          or (abs(y3/l3 - np.sin(goreId*goreTheta)) < eps and abs(x3/l3 - np.cos(goreId*goreTheta)) < eps)
+                                          or (abs(y4/l4 - np.sin(goreId*goreTheta)) < eps and abs(x4/l4 - np.cos(goreId*goreTheta)) < eps))):
+                        continue
+
+
+                    gores[goreId].append([n1, n2, n3, n4])
+
+                surf_ele_id = 0
+                for goreId in range(GORENUM):  # 80 Gores for each fabric
+                    #surf_file.write('SURFACETOPO %d SURFACE_THICKNESS %.16E\n' % ((surf_id - 1) * GORENUM + goreId + 1, thickness))
+                    surf_file.write(
+                        'SURFACETOPO %d\n' % ((surf_id - 1) * GORENUM + goreId + 1))
+                    for n1, n2, n3, n4 in gores[goreId]:
+                        surf_file.write('%d  %d  %d  %d  %d  %d\n' % (surf_ele_id + surf_ele_start_id, 1, n1, n2, n3, n4))
+                        surf_ele_id += 1
+
+                surf_ele_start_id += n_e
+
+            elif (type == 3):
+                name = ele_info[0]
+                surf_id = 1 if name == 'Disk_Gores' else 2
+                GORENUM = 80
+                goreTheta = 2 * np.pi / GORENUM
+                gores = [[] for x in range(GORENUM)]
+                for j in range(n_e):
+                    n1, n2, n3 = ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]
+                    x1, y1 = nodes[n1 - 1][0], nodes[n1 - 1][1]
+                    x2, y2 = nodes[n2 - 1][0], nodes[n2 - 1][1]
+                    x3, y3 = nodes[n3 - 1][0], nodes[n3 - 1][1]
+                    l1, l2, l3 = np.sqrt(x1 ** 2 + y1 ** 2), np.sqrt(x2 ** 2 + y2 ** 2), np.sqrt(
+                        x3 ** 2 + y3 ** 2)
+
+                    xc, yc = (x1 + x2 + x3) / 3.0, (y1 + y2 + y3) / 3.0
+                    theta = np.arctan2(yc, xc)
+                    if theta < 0:
+                        theta = 2 * np.pi + theta
+                    goreId = int(theta / goreTheta)
+                    eps = 1.e-4
+
+                    if (goreId % 2 == 0 and ((abs(y1 / l1 - np.sin(goreId * goreTheta)) < eps and abs(
+                                    x1 / l1 - np.cos(goreId * goreTheta)) < eps)
+                                             or (abs(y2 / l2 - np.sin(goreId * goreTheta)) < eps and abs(
+                                    x2 / l2 - np.cos(goreId * goreTheta)) < eps)
+                                             or (abs(y3 / l3 - np.sin(goreId * goreTheta)) < eps and abs(
+                                    x3 / l3 - np.cos(goreId * goreTheta)) < eps))):
+                        continue
+
+                    gores[goreId].append([n1, n2, n3])
+
+                surf_ele_id = 0
+                for goreId in range(GORENUM):  # 80 Gores for each fabric
+                    # surf_file.write(
+                    #     'SURFACETOPO %d SURFACE_THICKNESS %.16E\n' % ((surf_id - 1) * GORENUM + goreId + 1, thickness))
+                    surf_file.write('SURFACETOPO %d\n' % ((surf_id - 1) * GORENUM + goreId + 1))
+                    for n1, n2, n3 in gores[goreId]:
+                        surf_file.write(
+                            '%d  %d  %d  %d  %d\n' % (surf_ele_id + surf_ele_start_id, 3, n1, n2, n3))
+                        surf_ele_id += 1
+
+                surf_ele_start_id += n_e
+
+        # Step1.3 write IDISP6
+        if write_idisp:
+            node_disp = self.node_disp
+            stru_file.write('IDISP6\n')
+            for i_n in range(n_n):
+                # todo ignore the initial displacement
+                stru_file.write('%d %.16E  %.16E  %.16E  %.16E  %.16E  %.16E\n' % (
+                i_n + 1, node_disp[i_n][0], node_disp[i_n][1], node_disp[i_n][2], 0.0, 0.0, 0.0))
+
+        stru_file.close()
+        surf_file.close()
+
     def reset_initial(self):
         '''
         update node coordinate to include the displacement
@@ -906,7 +1074,7 @@ class Mesh:
 
 
 if __name__ == '__main__':
-    element_type = 4
+    element_type = 3
     if element_type == 3:
         mesh = Mesh(3)
         suffix = '.tria'
@@ -918,7 +1086,7 @@ if __name__ == '__main__':
 
         #mesh.reset_initial()
 
-        mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
+        mesh.write_stru_split_gores('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
     elif element_type == 4:
         mesh = Mesh(4)
         suffix = '.quad'
@@ -930,7 +1098,7 @@ if __name__ == '__main__':
 
         #mesh.reset_initial()
 
-        mesh.write_stru('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
+        mesh.write_stru_split_gores('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
 
 
 
