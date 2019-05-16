@@ -14,6 +14,51 @@ import numpy as np
 from scipy.optimize import fsolve
 import Line
 
+
+def matrix_to_angles(R, eps=1.e-6):
+    # R = Rz * Ry * Rx
+    # return theta_x, theta_y, theta_z
+    def check(psi, phi, theta, A):
+        a11 = A[0, 1] - (-np.cos(phi) * np.sin(psi) + np.sin(phi) * np.sin(theta) * np.cos(psi))
+        a12 = A[0, 2] - (np.sin(phi) * np.sin(psi) + np.cos(phi) * np.sin(theta) * np.cos(psi))
+        a21 = A[1, 1] - (np.cos(phi)  * np.cos(psi) + np.sin(phi) * np.sin(theta) * np.sin(psi))
+        a22 = A[1, 2] - (-np.sin(phi) * np.cos(psi) + np.cos(phi) * np.sin(theta) * np.sin(psi))
+        return (np.abs(a11) < eps and np.abs(a12) < eps and np.abs(a21) < eps and np.abs(a22) < eps)
+
+    if (R[0,0]**2 + R[1,0]**2 < eps):
+
+        if(np.abs(R[0,1] + R[1,2]) < eps and np.abs(R[0,2] - R[1,1]) < eps):
+            theta = np.pi / 2.0
+            psi = 0.0
+            phi = np.arctan2(R[1,1], R[1,2]) + psi
+        elif(np.abs(R[0,1] - R[1,2]) < eps and np.abs(R[0,2] + R[1,1]) < eps):
+            theta = -np.pi/2.0
+            psi = 0.0
+            phi = - np.arctan2(R[1, 1], R[1, 2]) - psi
+        else:
+            print('ERROR in matrix to angles costheta == 0')
+            exit(1)
+
+    else:
+        theta = -np.arcsin(R[2,0])
+        c_sign = np.sign(np.cos(theta))
+        psi = np.arctan2(R[1,0] * c_sign, R[0,0] * c_sign)
+        phi = np.arctan2(R[2,1] * c_sign, R[2,2] * c_sign)
+
+        if(not check(psi, phi, theta, R)):
+            theta = np.pi + np.arcsin(R[2, 0])
+            c_sign = np.sign(np.cos(theta))
+            psi = np.arctan2(R[1, 0] * c_sign, R[0, 0] * c_sign)
+            phi = np.arctan2(R[2, 1] * c_sign, R[2, 2] * c_sign)
+            if (not check(psi, phi, theta, R)):
+                print('ERROR in matrix to angles costheta != 0')
+                print(R, np.linalg.eig(R))
+                print(np.dot(R, R.T))
+                exit(1)
+
+
+    return phi, theta, psi
+
 class Elem:
     def __init__(self, id, nodes, att = 0, eframe = None):
         self.id = id
@@ -434,7 +479,7 @@ class Mesh:
         stru_file.close()
         surf_file.close()
 
-    def write_stru_split_gores(self, stru_file_name, surf_file_name, write_idisp=False, thickness=2.e-3):
+    def write_stru_split_gores(self, stru_file_name, surf_file_name, write_idisp=False, thickness=2.e-3, with_gap = False):
         print('Writing mesh ...')
         stru_file = open(stru_file_name, 'w')
         surf_file = open(surf_file_name, 'w')
@@ -447,7 +492,7 @@ class Mesh:
         for i in range(n_n):
             stru_file.write('%d  %.16E  %.16E  %.16E\n' % (
                 i + 1, nodes[i][0], nodes[i][1], nodes[i][2]))
-
+        # node_usage = np.zeros(n_n)
         # Step1.2 write TOPOLOGY
         ele_set = self.ele_set
         ele_set_info = self.ele_set_info
@@ -473,15 +518,20 @@ class Mesh:
                 if (type == 2):
                     stru_file.write('%d  %d  %d  %d\n' % (
                     stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1]))
+
+
                 if (type == 3):
                     stru_file.write(
                         '%d  %d  %d  %d  %d\n' % (
                         stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2]))
+
                 if (type == 4):
                     stru_file.write(
                         '%d  %d  %d  %d  %d  %d\n' % (
                         stru_ele_start_id + j, fem_type, ele_new[j].nodes[0], ele_new[j].nodes[1], ele_new[j].nodes[2],
                         ele_new[j].nodes[3]))
+
+
             stru_file.write('ATTRIBUTES\n')
             for j in range(n_e):
                 stru_file.write('%d  %d\n' % (stru_ele_start_id + j, ele_new[j].att))
@@ -527,7 +577,8 @@ class Mesh:
                         theta = 2 * np.pi + theta
                     goreId = int(theta / goreTheta)
                     eps = 1.e-4
-                    if (goreId % 2 == 0 and ((abs(y1/l1 - np.sin(goreId*goreTheta)) < eps and abs(x1/l1 - np.cos(goreId*goreTheta)) < eps)
+
+                    if (with_gap and goreId % 2 == 0 and ((abs(y1/l1 - np.sin(goreId*goreTheta)) < eps and abs(x1/l1 - np.cos(goreId*goreTheta)) < eps)
                                           or (abs(y2/l2 - np.sin(goreId*goreTheta)) < eps and abs(x2/l2 - np.cos(goreId*goreTheta)) < eps)
                                           or (abs(y3/l3 - np.sin(goreId*goreTheta)) < eps and abs(x3/l3 - np.cos(goreId*goreTheta)) < eps)
                                           or (abs(y4/l4 - np.sin(goreId*goreTheta)) < eps and abs(x4/l4 - np.cos(goreId*goreTheta)) < eps))):
@@ -568,7 +619,7 @@ class Mesh:
                     goreId = int(theta / goreTheta)
                     eps = 1.e-4
 
-                    if (goreId % 2 == 0 and ((abs(y1 / l1 - np.sin(goreId * goreTheta)) < eps and abs(
+                    if (with_gap and goreId % 2 == 0 and ((abs(y1 / l1 - np.sin(goreId * goreTheta)) < eps and abs(
                                     x1 / l1 - np.cos(goreId * goreTheta)) < eps)
                                              or (abs(y2 / l2 - np.sin(goreId * goreTheta)) < eps and abs(
                                     x2 / l2 - np.cos(goreId * goreTheta)) < eps)
@@ -590,9 +641,10 @@ class Mesh:
 
                 surf_ele_start_id += n_e
 
-        # Step1.3 write IDISP6
+
         if write_idisp:
             node_disp = self.node_disp
+            node_rotation = self.compute_rotation()
             stru_file.write('IDISP6\n')
             for i_n in range(n_n):
                 # todo ignore the initial displacement
@@ -602,6 +654,117 @@ class Mesh:
         stru_file.close()
         surf_file.close()
 
+    def compute_rotation(self):
+        nodes, ele_set, ele_set_info = self.nodes, self.ele_set, self.ele_set_info
+        nodes_disp = self.node_disp
+        band_rot_matrices = self.band_rot_matrices
+        disk_rot_matrices = self.disk_rot_matrices
+        n_n = len(nodes)
+        n_es = len(ele_set)
+        nodes_rotation_2d = np.zeros((n_n, 3))
+        nodes_rotation_3d = np.zeros((n_n, 3))
+        weights = np.zeros((n_n, 2), dtype=int)
+
+        print(len(nodes), nodes_disp.shape, len(ele_set))
+        GORENUM = 80 #todo
+        goreTheta = 2 * np.pi / GORENUM
+
+        for i in range(len(ele_set)):
+            eles = ele_set[i]
+            id = len(eles[0].nodes)
+            print(ele_set_info[i][0])
+            if id == 2:
+                # beam element
+                for e in eles:
+                    n1, n2 = e.nodes
+
+                    xx1, xx2 = np.array(nodes[n1 - 1]), np.array(nodes[n2 - 1])
+                    yy1, yy2 = np.array(nodes[n1 - 1]) + nodes_disp[n1 - 1], np.array(nodes[n2 - 1]) + nodes_disp[n2 - 1]
+
+                    a = xx2 - xx1
+                    a = a / np.linalg.norm(a)
+
+                    b = yy2 - yy1
+                    b = b / np.linalg.norm(b)
+
+
+                    v1, v2, v3 = np.cross(a, b)
+                    s = np.sqrt(v1**2 + v2**2 + v3**2)
+                    c = np.dot(a, b)
+                    if s < 1.e-10:
+                        theta_x, theta_y, theta_z = 0., 0., 0.
+                    else:
+                        vx = np.array([[0.,-v3,v2],[v3,0,-v1],[-v2,v1,0.]])
+
+                        R = np.array([[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]) + vx + np.dot(vx,vx)* (1-c)/s**2
+
+                        theta_x, theta_y, theta_z = matrix_to_angles(R)
+
+
+                    nodes_rotation_2d[n1 - 1, :] += np.array([theta_x, theta_y, theta_z])
+                    nodes_rotation_2d[n2 - 1, :] += np.array([theta_x, theta_y, theta_z])
+                    weights[n1 - 1, 1] += 1
+                    weights[n2 - 1, 1] += 1
+
+
+
+
+
+            else:
+                # shell element
+                for e in eles:
+                    n1, n2, n3 = e.nodes
+
+                    x1, y1, z1 = nodes[n1 - 1][0], nodes[n1 - 1][1], nodes[n1 - 1][2]
+                    x2, y2, z2 = nodes[n2 - 1][0], nodes[n2 - 1][1], nodes[n2 - 1][2]
+                    x3, y3, z3 = nodes[n3 - 1][0], nodes[n3 - 1][1], nodes[n3 - 1][2]
+
+                    xc, yc = (x1 + x2 + x3) / 3.0, (y1 + y2 + y3) / 3.0
+                    theta = np.arctan2(yc, xc)
+                    if theta < 0:
+                        theta = 2 * np.pi + theta
+
+
+
+                    goreId = int(theta / goreTheta)
+
+                    R = disk_rot_matrices[goreId] if ele_set_info[i][0] == 'Disk_Gores' else band_rot_matrices[goreId]
+
+                    theta_x, theta_y, theta_z = matrix_to_angles(R)
+
+                    nodes_rotation_3d[n1 - 1, :] += np.array([theta_x, theta_y, theta_z])
+                    nodes_rotation_3d[n2 - 1, :] += np.array([theta_x, theta_y, theta_z])
+                    nodes_rotation_3d[n3 - 1, :] += np.array([theta_x, theta_y, theta_z])
+
+                    weights[n1 - 1, 0] += 1
+                    weights[n2 - 1, 0] += 1
+                    weights[n2 - 1, 0] += 1
+
+                    # xx0, xx1, xx2 = np.array(nodes[n1 - 1]), np.array(nodes[n2 - 1]), np.array(nodes[n3 - 1])
+                    # aa0, aa1, aa2 = xx0 - xx0, xx1 - xx0, xx2 - xx0
+                    #
+                    #
+                    # yy0, yy1, yy2 = nodes[n1 - 1] + nodes_disp[n1 - 1], nodes[n2 - 1] + nodes_disp[n2 - 1], nodes[n3 - 1] + \
+                    #              nodes_disp[n3 - 1]
+                    # bb0, bb1, bb2 = yy0 - yy0, yy1 - yy0, yy2 - yy0
+                    #
+                    #
+                    #
+                    # e1, e2 = np.dot(R, aa1) - bb1, np.dot(R, aa2) - bb2
+                    #
+                    # if (np.linalg.norm(e1) > 1.e-10 or np.linalg.norm(e2) > 1.e-10):
+                    #     print( n1, n2 , n3, ele_set_info[i][0])
+                    #     # print(a1, a2, b1, b2)
+                    #     # print(np.linalg.norm(a1), np.linalg.norm(a2), np.linalg.norm(b1), np.linalg.norm(b2))
+                    #     print(e1, e2)
+                    #     #exit(1)
+
+
+
+
+            print(id)
+
+        return nodes_rotation
     def reset_initial(self):
         '''
         update node coordinate to include the displacement
@@ -633,7 +796,7 @@ class Mesh:
         h0 = 0
         L_s, L_v, L_g = np.sqrt(R_b**2 + hb_b**2), r_d, np.sqrt((R_d - R_b)**2 + (h_d - ht_b)**2) # Suspension_Lines length ,  Vent_Lines length,    Gap_Lines length
 
-
+        rotaion_matrix = [[],[]] # for the disk and the band
 
         # todo the second parameter is the z displacement of disk
         disk_b3 = 7.5
@@ -788,7 +951,8 @@ class Mesh:
 
 
 
-
+        self.band_rot_matrices = band_rot_matrices
+        self.disk_rot_matrices = disk_rot_matrices
 
 
 
@@ -865,84 +1029,84 @@ class Mesh:
 
                             node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
-        n_n = len(nodes)  # save number of nodes
-        n_es = len(ele_set)
-
-        ################   Update canopy
-        for i_es in range(n_es):
-            ele = ele_set[i_es]
-            ele_info = ele_set_info[i_es]
-            if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Disk_Gores':
-                n_e = len(ele)
-                for i_e in range(n_e):
-                    ele_nodes = ele[i_e].nodes
-                    for i_n in ele_nodes:
-                        xx = nodes[i_n - 1]
-                        angle_x = np.arctan2(xx[1], xx[0])  # [-pi, 2pi]
-                        gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
-                        # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
-                        # map the point xx -> rot_A * (xx - c) + c + disp_b, here c = [0, 0, xx[2]]
-
-
-                        disk_rot = disk_rot_matrices[gore_id]
-                        xx_shift, disp_shift = np.array([xx[0], xx[1], 0.0]), np.array([0, 0, xx[2]])
-                        new_xx = np.dot(disk_rot, xx_shift) + disk_disp + disp_shift
-
-                        node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
-
-            if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Band_Gores':
-                n_e = len(ele)
-                if band_deform_method == 'rigid':
-                    for i_e in range(n_e):
-                        ele_nodes = ele[i_e].nodes
-                        for i_n in ele_nodes:
-                            xx = nodes[i_n - 1]
-                            angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
-                            gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
-                            # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
-                            # map the point xx -> rot_A * xx  + disp
-
-                            band_rot = band_rot_matrices[gore_id]
-                            band_disp = band_disp_vectors[gore_id]
-                            new_xx = np.dot(band_rot, xx) + band_disp
-
-                            node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
-                elif band_deform_method == 'flat':
-
-                    l_b_deform = theta * R_b
-                    R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(
-                        l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
-
-                    for i_e in range(n_e):
-                        ele_nodes = ele[i_e].nodes
-                        for i_n in ele_nodes:
-                            xx = nodes[i_n - 1]
-                            angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
-                            gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
-                            # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
-                            # map the point xx -> rot_A * xx  + disp
-
-                            d_theta = angle_x - gore_id * theta if angle_x >= 0 else angle_x + 2 * np.pi - gore_id * theta
-                            assert (d_theta <= theta and d_theta >= 0)
-                            ds = d_theta * R_b
-
-                            start_deform = np.empty(3)
-                            end_deform = np.empty(3)
-                            if gore_id % 2 == 0:
-                                start_deform[:] = R_b_deform * np.cos(gore_id * theta), R_b_deform * np.sin(
-                                    gore_id * theta), 0
-                                end_deform[:] = r_b_deform * np.cos((gore_id + 1) * theta), r_b_deform * np.sin(
-                                    (gore_id + 1) * theta), 0
-                            else:  # gore_id%2 == 1
-                                start_deform[:] = r_b_deform * np.cos(gore_id * theta), r_b_deform * np.sin(
-                                    gore_id * theta), 0
-                                end_deform[:] = R_b_deform * np.cos((gore_id + 1) * theta), R_b_deform * np.sin(
-                                    (gore_id + 1) * theta), 0
-
-                            new_xx = (1 - ds / l_b_deform) * start_deform + ds / l_b_deform * end_deform
-                            new_xx[2] = xx[2] + band_b3
-
-                            node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+        # n_n = len(nodes)  # save number of nodes
+        # n_es = len(ele_set)
+        #
+        # ################   Update canopy
+        # for i_es in range(n_es):
+        #     ele = ele_set[i_es]
+        #     ele_info = ele_set_info[i_es]
+        #     if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Disk_Gores':
+        #         n_e = len(ele)
+        #         for i_e in range(n_e):
+        #             ele_nodes = ele[i_e].nodes
+        #             for i_n in ele_nodes:
+        #                 xx = nodes[i_n - 1]
+        #                 angle_x = np.arctan2(xx[1], xx[0])  # [-pi, 2pi]
+        #                 gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+        #                 # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+        #                 # map the point xx -> rot_A * (xx - c) + c + disp_b, here c = [0, 0, xx[2]]
+        #
+        #
+        #                 disk_rot = disk_rot_matrices[gore_id]
+        #                 xx_shift, disp_shift = np.array([xx[0], xx[1], 0.0]), np.array([0, 0, xx[2]])
+        #                 new_xx = np.dot(disk_rot, xx_shift) + disk_disp + disp_shift
+        #
+        #                 node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+        #
+        #     if (ele_info[1] == 4 or ele_info[1] == 3) and ele_info[0] == 'Band_Gores':
+        #         n_e = len(ele)
+        #         if band_deform_method == 'rigid':
+        #             for i_e in range(n_e):
+        #                 ele_nodes = ele[i_e].nodes
+        #                 for i_n in ele_nodes:
+        #                     xx = nodes[i_n - 1]
+        #                     angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
+        #                     gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+        #                     # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+        #                     # map the point xx -> rot_A * xx  + disp
+        #
+        #                     band_rot = band_rot_matrices[gore_id]
+        #                     band_disp = band_disp_vectors[gore_id]
+        #                     new_xx = np.dot(band_rot, xx) + band_disp
+        #
+        #                     node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
+        #         elif band_deform_method == 'flat':
+        #
+        #             l_b_deform = theta * R_b
+        #             R_b_deform = r_b_deform * np.cos(theta) - np.sqrt(
+        #                 l_b_deform * l_b_deform - r_b_deform * r_b_deform * np.sin(theta) * np.sin(theta))
+        #
+        #             for i_e in range(n_e):
+        #                 ele_nodes = ele[i_e].nodes
+        #                 for i_n in ele_nodes:
+        #                     xx = nodes[i_n - 1]
+        #                     angle_x = np.arctan2(xx[1], xx[0])  # [-pi, pi]
+        #                     gore_id = int((angle_x + 2 * np.pi) / theta) % (2 * n)
+        #                     # For the piece  [pi/n * gore_id, pi/n * (gore_id + 1)]
+        #                     # map the point xx -> rot_A * xx  + disp
+        #
+        #                     d_theta = angle_x - gore_id * theta if angle_x >= 0 else angle_x + 2 * np.pi - gore_id * theta
+        #                     assert (d_theta <= theta and d_theta >= 0)
+        #                     ds = d_theta * R_b
+        #
+        #                     start_deform = np.empty(3)
+        #                     end_deform = np.empty(3)
+        #                     if gore_id % 2 == 0:
+        #                         start_deform[:] = R_b_deform * np.cos(gore_id * theta), R_b_deform * np.sin(
+        #                             gore_id * theta), 0
+        #                         end_deform[:] = r_b_deform * np.cos((gore_id + 1) * theta), r_b_deform * np.sin(
+        #                             (gore_id + 1) * theta), 0
+        #                     else:  # gore_id%2 == 1
+        #                         start_deform[:] = r_b_deform * np.cos(gore_id * theta), r_b_deform * np.sin(
+        #                             gore_id * theta), 0
+        #                         end_deform[:] = R_b_deform * np.cos((gore_id + 1) * theta), R_b_deform * np.sin(
+        #                             (gore_id + 1) * theta), 0
+        #
+        #                     new_xx = (1 - ds / l_b_deform) * start_deform + ds / l_b_deform * end_deform
+        #                     new_xx[2] = xx[2] + band_b3
+        #
+        #                     node_disp[i_n - 1, :] = new_xx[0] - xx[0], new_xx[1] - xx[1], new_xx[2] - xx[2]
 
         ##############################################################################################################
         # Update vent_center point
@@ -1075,18 +1239,20 @@ class Mesh:
 
 if __name__ == '__main__':
     element_type = 3
+    thickness = 2.0e-3
+    with_gap = False
     if element_type == 3:
         mesh = Mesh(3)
         suffix = '.tria'
         mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-        mesh.refine()
-        mesh.refine()
+        # mesh.refine()
+        # mesh.refine()
         mesh.folding(40)
 
         #mesh.reset_initial()
 
-        mesh.write_stru_split_gores('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True)
+        mesh.write_stru_split_gores('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True, thickness, with_gap)
     elif element_type == 4:
         mesh = Mesh(4)
         suffix = '.quad'

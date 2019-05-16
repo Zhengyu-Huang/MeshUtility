@@ -335,8 +335,10 @@ def ReadStru(inputStru, beamPars):
             line_coord = np.empty([len(line) - 2 * skip, 3], dtype=float)
             for j in range(len(line) - 2 * skip):
                 line_coord[j, :] = nodes[line[j + skip] - 1]
-            A = np.array(nodes[line[skip - 1] - 1])
-            B = np.array(nodes[line[len(line) - skip] - 1])
+            #sharp_or_not 1 or 0, adjust A and B for sharp tip or not
+            sharp_or_not = 0
+            A = np.array(nodes[line[skip - sharp_or_not] - 1])
+            B = np.array(nodes[line[len(line) - skip + sharp_or_not - 1] - 1])
             phantomCoord, phantomTri = LineDressing(line_coord, r, shape, close_or_not, A, B)
 
             phantomCoords[i].append(phantomCoord)
@@ -465,10 +467,10 @@ if __name__ == '__main__':
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
     d = 3.175e-3
     r = d/2.0
-    # ParachuteEmbSurf(type = 1, beamPars=[12, 6, r], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
+    # ParachuteEmbSurf(type = 1, beamPars=[12, 6, r, True], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
     #                   output='embeddedSurface.top')
 
 
-    ParachuteEmbSurf(type=1, beamPars=[12, 6, r, True], inputStru='./mesh_Structural.top.tria.part.part_2',
+    ParachuteEmbSurf(type=1, beamPars=[6, 6, r, True], inputStru='./mesh_Structural.top.tria_1',
                      inputPayload='./capsule.top',
                      output='embeddedSurface.top')
