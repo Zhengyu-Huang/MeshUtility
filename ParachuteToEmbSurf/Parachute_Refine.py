@@ -15,49 +15,105 @@ from scipy.optimize import fsolve
 import Line
 
 
-def matrix_to_angles(R, eps=1.e-6):
-    # R = Rz * Ry * Rx
-    # return theta_x, theta_y, theta_z
-    def check(psi, phi, theta, A):
-        a11 = A[0, 1] - (-np.cos(phi) * np.sin(psi) + np.sin(phi) * np.sin(theta) * np.cos(psi))
-        a12 = A[0, 2] - (np.sin(phi) * np.sin(psi) + np.cos(phi) * np.sin(theta) * np.cos(psi))
-        a21 = A[1, 1] - (np.cos(phi)  * np.cos(psi) + np.sin(phi) * np.sin(theta) * np.sin(psi))
-        a22 = A[1, 2] - (-np.sin(phi) * np.cos(psi) + np.cos(phi) * np.sin(theta) * np.sin(psi))
-        return (np.abs(a11) < eps and np.abs(a12) < eps and np.abs(a21) < eps and np.abs(a22) < eps)
+def matrix_to_angles(rten, eps=1.e-6):
+    # # R = Rz * Ry * Rx
+    # # return theta_x, theta_y, theta_z
+    # def check(psi, phi, theta, A):
+    #     a11 = A[0, 1] - (-np.cos(phi) * np.sin(psi) + np.sin(phi) * np.sin(theta) * np.cos(psi))
+    #     a12 = A[0, 2] - (np.sin(phi) * np.sin(psi) + np.cos(phi) * np.sin(theta) * np.cos(psi))
+    #     a21 = A[1, 1] - (np.cos(phi)  * np.cos(psi) + np.sin(phi) * np.sin(theta) * np.sin(psi))
+    #     a22 = A[1, 2] - (-np.sin(phi) * np.cos(psi) + np.cos(phi) * np.sin(theta) * np.sin(psi))
+    #     return (np.abs(a11) < eps and np.abs(a12) < eps and np.abs(a21) < eps and np.abs(a22) < eps)
+    #
+    # if (R[0,0]**2 + R[1,0]**2 < eps):
+    #
+    #     if(np.abs(R[0,1] + R[1,2]) < eps and np.abs(R[0,2] - R[1,1]) < eps):
+    #         theta = np.pi / 2.0
+    #         psi = 0.0
+    #         phi = np.arctan2(R[1,1], R[1,2]) + psi
+    #     elif(np.abs(R[0,1] - R[1,2]) < eps and np.abs(R[0,2] + R[1,1]) < eps):
+    #         theta = -np.pi/2.0
+    #         psi = 0.0
+    #         phi = - np.arctan2(R[1, 1], R[1, 2]) - psi
+    #     else:
+    #         print('ERROR in matrix to angles costheta == 0')
+    #         exit(1)
+    #
+    # else:
+    #     theta = -np.arcsin(R[2,0])
+    #     c_sign = np.sign(np.cos(theta))
+    #     psi = np.arctan2(R[1,0] * c_sign, R[0,0] * c_sign)
+    #     phi = np.arctan2(R[2,1] * c_sign, R[2,2] * c_sign)
+    #
+    #     if(not check(psi, phi, theta, R)):
+    #         theta = np.pi + np.arcsin(R[2, 0])
+    #         c_sign = np.sign(np.cos(theta))
+    #         psi = np.arctan2(R[1, 0] * c_sign, R[0, 0] * c_sign)
+    #         phi = np.arctan2(R[2, 1] * c_sign, R[2, 2] * c_sign)
+    #         if (not check(psi, phi, theta, R)):
+    #             print('ERROR in matrix to angles costheta != 0')
+    #             print(R, np.linalg.eig(R))
+    #             print(np.dot(R, R.T))
+    #             exit(1)
 
-    if (R[0,0]**2 + R[1,0]**2 < eps):
 
-        if(np.abs(R[0,1] + R[1,2]) < eps and np.abs(R[0,2] - R[1,1]) < eps):
-            theta = np.pi / 2.0
-            psi = 0.0
-            phi = np.arctan2(R[1,1], R[1,2]) + psi
-        elif(np.abs(R[0,1] - R[1,2]) < eps and np.abs(R[0,2] + R[1,1]) < eps):
-            theta = -np.pi/2.0
-            psi = 0.0
-            phi = - np.arctan2(R[1, 1], R[1, 2]) - psi
-        else:
-            print('ERROR in matrix to angles costheta == 0')
-            exit(1)
+
+    p = np.array([0, 1, 2, 0, 1], dtype= int)
+    q = np.zeros(4) #quarternion
+    trace = rten[0][0] + rten[1][1] + rten[2][2]
+
+    imax = 0
+    if (rten[1][1] > rten[imax][imax]):
+        imax = 1
+    if (rten[2][2] > rten[imax][imax]):
+        imax = 2;
+
+    if (trace > rten[imax][imax]):
+        q[0] = np.sqrt(1.0 + trace) / 2.0
+        q[1] = (rten[2][1] - rten[1][2]) / (4.0 * q[0])
+        q[2] = (rten[0][2] - rten[2][0]) / (4.0 * q[0])
+        q[3] = (rten[1][0] - rten[0][1]) / (4.0 * q[0])
 
     else:
-        theta = -np.arcsin(R[2,0])
-        c_sign = np.sign(np.cos(theta))
-        psi = np.arctan2(R[1,0] * c_sign, R[0,0] * c_sign)
-        phi = np.arctan2(R[2,1] * c_sign, R[2,2] * c_sign)
-
-        if(not check(psi, phi, theta, R)):
-            theta = np.pi + np.arcsin(R[2, 0])
-            c_sign = np.sign(np.cos(theta))
-            psi = np.arctan2(R[1, 0] * c_sign, R[0, 0] * c_sign)
-            phi = np.arctan2(R[2, 1] * c_sign, R[2, 2] * c_sign)
-            if (not check(psi, phi, theta, R)):
-                print('ERROR in matrix to angles costheta != 0')
-                print(R, np.linalg.eig(R))
-                print(np.dot(R, R.T))
-                exit(1)
+        i = p[imax];
+        j = p[imax + 1];
+        k = p[imax + 2];
+        q[i + 1] = np.sqrt(rten[i][i] / 2.0 + (1.0 - trace) / 4.0);
+        q[0] = (rten[k][j] - rten[j][k]) / (4.0 * q[i + 1]);
+        q[j + 1] = (rten[j][i] + rten[i][j]) / (4.0 * q[i + 1]);
+        q[k + 1] = (rten[k][i] + rten[i][k]) / (4.0 * q[i + 1]);
 
 
-    return phi, theta, psi
+    if (q[0] < 0):
+        print("negative quaternion in mat_to_quat\n")
+        for l in range(4):
+            q[l] = -q[l]
+
+
+
+
+    sthh = np.sqrt(q[1] * q[1] + q[2] * q[2] + q[3] * q[3])
+
+
+    cthh = q[0];
+    if (sthh < 0.7):
+        th = 2.0 * np.arcsin(sthh);
+    else:
+        th = 2.0 * np.arccos(cthh);
+
+    if (sthh <= eps):
+        coef = 2.0;
+    else:
+        if ( sthh > 1.0 ):
+            sthh = 1.0
+        coef = th / sthh
+
+
+
+    return coef * q[1], coef * q[2], coef * q[3]
+
+
+
 
 class Elem:
     def __init__(self, id, nodes, att = 0, eframe = None):
@@ -649,7 +705,7 @@ class Mesh:
             for i_n in range(n_n):
                 # todo ignore the initial displacement
                 stru_file.write('%d %.16E  %.16E  %.16E  %.16E  %.16E  %.16E\n' % (
-                i_n + 1, node_disp[i_n][0], node_disp[i_n][1], node_disp[i_n][2], 0.0, 0.0, 0.0))
+                i_n + 1, node_disp[i_n][0], node_disp[i_n][1], node_disp[i_n][2], node_rotation[i_n][0], node_rotation[i_n][1], node_rotation[i_n][2]))
 
         stru_file.close()
         surf_file.close()
@@ -663,6 +719,7 @@ class Mesh:
         n_es = len(ele_set)
         nodes_rotation_2d = np.zeros((n_n, 3))
         nodes_rotation_3d = np.zeros((n_n, 3))
+        nodes_rotation = np.zeros((n_n, 3))
         weights = np.zeros((n_n, 2), dtype=int)
 
         print(len(nodes), nodes_disp.shape, len(ele_set))
@@ -673,6 +730,12 @@ class Mesh:
             eles = ele_set[i]
             id = len(eles[0].nodes)
             print(ele_set_info[i][0])
+
+            # if(ele_set_info[i][0] == 'Band_Bottom_Edges' or ele_set_info[i][0] == 'Band_Top_Edges'
+            #       or ele_set_info[i][0] == 'Disk_Inner_Edges' or ele_set_info[i][0] == 'Disk_Outer_Edges'):
+            #     print('skip ', ele_set_info[i][0])
+            #     continue
+
             if id == 2:
                 # beam element
                 for e in eles:
@@ -732,6 +795,7 @@ class Mesh:
 
                     theta_x, theta_y, theta_z = matrix_to_angles(R)
 
+
                     nodes_rotation_3d[n1 - 1, :] += np.array([theta_x, theta_y, theta_z])
                     nodes_rotation_3d[n2 - 1, :] += np.array([theta_x, theta_y, theta_z])
                     nodes_rotation_3d[n3 - 1, :] += np.array([theta_x, theta_y, theta_z])
@@ -759,10 +823,23 @@ class Mesh:
                     #     print(e1, e2)
                     #     #exit(1)
 
+        # weight = weights[:, 0] + weights[:, 1]
+        # nodes_rotation = nodes_rotation_3d + nodes_rotation_2d
+        # I = weight > 0
+        # nodes_rotation[I, :] = nodes_rotation[I, :] / weight[I, None]
+        # I = weights[:, 0] > 0
+        # nodes_rotation[I, :] = nodes_rotation_3d[I, :] / weights[I, 0][:,None]
+
+        #shell element use rotation from shell
+        I = weights[:, 0] > 0
+        nodes_rotation[I, :] = nodes_rotation_3d[I, :] / weights[I, 0][:,None]
+
+        #rewrite beam rotation, use rotaion from beam
+        I = weights[:, 1] > 0
+        nodes_rotation[I, :] = nodes_rotation_2d[I, :] / weights[I, 1][:, None]
 
 
 
-            print(id)
 
         return nodes_rotation
     def reset_initial(self):
@@ -810,18 +887,29 @@ class Mesh:
 
         ################################################ This is for the disk
         # todo the first parameter is cosa in [0, 1], the smaller cosa the more folded
+        # cosa = 0.4 # 0.3, 0.2
+        # sina = -np.sqrt(1 - cosa * cosa)
+        # cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
+        # sinb = -cosa + cosb * sina * np.tan(theta)
+        # print('cosb^2 + sinb^2 = ', cosb * cosb + sinb * sinb)
+        #
+        # disk_rot0 = np.array([[cosa, -cosb * sina, -sinb * sina],
+        #                  [0, cosa - cosb * sina * np.tan(theta), cosb],
+        #                  [sina, cosb * cosa, sinb * cosa]])
+
         cosa = 0.4 # 0.3, 0.2
-        sina = -np.sqrt(1 - cosa * cosa)
-        cosb = (sina * cosa * np.tan(theta) - sina / np.cos(theta)) / (1 + sina * sina * np.tan(theta) * np.tan(theta))
-        sinb = -cosa + cosb * sina * np.tan(theta)
+        sina = np.sqrt(1 - cosa * cosa)
+        sinb = (-sina*cosa*np.tan(theta) + sina*np.sqrt(cosa**2*np.tan(theta)**2 + 1 + sina**2*np.tan(theta)**2))/ (1 + sina * sina * np.tan(theta) * np.tan(theta))
+        cosb = cosa + sinb * sina * np.tan(theta)
         print('cosb^2 + sinb^2 = ', cosb * cosb + sinb * sinb)
 
-        disk_rot0 = np.array([[cosa, -cosb * sina, -sinb * sina],
-                         [0, cosa - cosb * sina * np.tan(theta), cosb],
-                         [sina, cosb * cosa, sinb * cosa]])
+        disk_rot0 = np.array([[cosa,        sinb * sina,                             sina *cosb],
+                              [0,               cosb  ,                                             -sinb  ],
+                              [-sina,             sinb * cosa,                     cosb * cosa]])
 
         disk_disp = np.array([0, 0, disk_b3])
-        print('orthogonal matrix test ', np.dot(disk_rot0.T, disk_rot0))
+        print('orthogonal matrix test ', np.dot(disk_rot0.T, disk_rot0), np.linalg.det(disk_rot0))
+
 
         # The rigid motion of the first half gore is rot0*x + disp0
         disk_x1 = np.array([r_d, 0, 0])
@@ -1246,8 +1334,8 @@ if __name__ == '__main__':
         suffix = '.tria'
         mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-        # mesh.refine()
-        # mesh.refine()
+        mesh.refine()
+        mesh.refine()
         mesh.folding(40)
 
         #mesh.reset_initial()
