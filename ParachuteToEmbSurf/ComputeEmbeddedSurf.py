@@ -485,8 +485,8 @@ if __name__ == '__main__':
     the cross section beamPars[1], 4 for square, radius of the cross section beamPars[2], beamPars[3] close or not,
     sharp_or_not 1 or 0, adjust A and B for sharp tip or not
 
-    inputStru: structure file, this is generated from Parachute Refine.py
-    And you need to clean it to have only nodes, canopy and suspension lines
+    inputStru: structure file (mesh_Structural.top.tria), this is generated from Parachute Refine.py
+    And you need to clean it to have only nodes, canopy and suspension lines(do not need Disk outer/inner edges, seams....)
     If you do not want suspension line dressing, remove suspension lines from the mesh_Structural.top.tria
     '''
     ParachuteEmbSurf(type=1, beamPars=[6, 6, r, True, 0], inputStru='./EmbeddedSurface_Raw/Refine_1/mesh_Structural.top.tria',
