@@ -1,13 +1,9 @@
 #################################
-# StructureFile
-# fixed displacement point
-# fixed rotation point
-#
-# mesh_Structural.top.quad
-# NODES
-#
-#
-# mesh_Structural.surfacetop.quad
+# This file read structure file
+# it can refine the canopy
+# and fold the canopy
+# write down new structure file with IDIPS6
+# See main function for more details
 #################################
 import sys
 import numpy as np
@@ -503,7 +499,7 @@ class Mesh:
             if (type == 4):
                 name = ele_info[0]
                 surf_id = 1 if name == 'Disk_Gores' else 2
-                surf_file.write('SURFACETOPO %d SURFACE_THICKNESS %.16E\n' %(surf_id, thickness))
+                surf_file.write('*\nSURFACETOPO %d SURFACE_THICKNESS %.16E\n' %(surf_id, thickness))
 
                 for j in range(n_e):
                     surf_file.write(
@@ -514,7 +510,7 @@ class Mesh:
             elif (type == 3):
                 name = ele_info[0]
                 surf_id = 1 if name == 'Disk_Gores' else 2
-                surf_file.write('SURFACETOPO %d SURFACE_THICKNESS %.16E\n' %(surf_id, thickness))
+                surf_file.write('*\nSURFACETOPO %d SURFACE_THICKNESS %.16E\n' %(surf_id, thickness))
 
                 for j in range(n_e):
                     surf_file.write(
@@ -533,6 +529,7 @@ class Mesh:
 
 
         stru_file.close()
+        surf_file.write('*\n')
         surf_file.close()
 
     def write_stru_split_gores(self, stru_file_name, surf_file_name, write_idisp=False, thickness=2.e-3, with_gap = False):
@@ -647,7 +644,7 @@ class Mesh:
                 for goreId in range(GORENUM):  # 80 Gores for each fabric
                     #surf_file.write('SURFACETOPO %d SURFACE_THICKNESS %.16E\n' % ((surf_id - 1) * GORENUM + goreId + 1, thickness))
                     surf_file.write(
-                        'SURFACETOPO %d\n' % ((surf_id - 1) * GORENUM + goreId + 1))
+                        '*\nSURFACETOPO %d\n' % ((surf_id - 1) * GORENUM + goreId + 1))
                     for n1, n2, n3, n4 in gores[goreId]:
                         surf_file.write('%d  %d  %d  %d  %d  %d\n' % (surf_ele_id + surf_ele_start_id, 1, n1, n2, n3, n4))
                         surf_ele_id += 1
@@ -689,7 +686,7 @@ class Mesh:
                 for goreId in range(GORENUM):  # 80 Gores for each fabric
                     # surf_file.write(
                     #     'SURFACETOPO %d SURFACE_THICKNESS %.16E\n' % ((surf_id - 1) * GORENUM + goreId + 1, thickness))
-                    surf_file.write('SURFACETOPO %d\n' % ((surf_id - 1) * GORENUM + goreId + 1))
+                    surf_file.write('*\nSURFACETOPO %d\n' % ((surf_id - 1) * GORENUM + goreId + 1))
                     for n1, n2, n3 in gores[goreId]:
                         surf_file.write(
                             '%d  %d  %d  %d  %d\n' % (surf_ele_id + surf_ele_start_id, 3, n1, n2, n3))
@@ -708,6 +705,7 @@ class Mesh:
                 i_n + 1, node_disp[i_n][0], node_disp[i_n][1], node_disp[i_n][2], node_rotation[i_n][0], node_rotation[i_n][1], node_rotation[i_n][2]))
 
         stru_file.close()
+        surf_file.write('*\n')
         surf_file.close()
 
     def compute_rotation(self):
@@ -1326,28 +1324,51 @@ class Mesh:
 
 
 if __name__ == '__main__':
+    # element type can be 3 or 4
+    # 3: triangular structure element 
+    # 4: quad element structure mesh
     element_type = 3
+
+    # contact surface topology thickness for 2 side contact
+    # since we use one side contact, this is no longer used
     thickness = 2.0e-3
+
+    # leave gap in the surface topology for 2 side contact
+    # since we use one side contact, this is false
     with_gap = False
     if element_type == 3:
         mesh = Mesh(3)
         suffix = '.tria'
         mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
-        mesh.refine()
-        mesh.refine()
+        # calling the function, you can refine the mesh by cuting each edge into 2
+        # mesh.refine()
+        # mesh.refine()
+
+        # Apply the accordion folding with 40 /\/\/\/\ .....
+        # The most important parameters in this function (hard-coded)
+        # the 1st parameter is cosa = 0.4 in [0, 1], the smaller cosa the more folded is the parachute 
+        # the 2nd parameter is disk_b3 = 7.5, the z displacement of disk   
         mesh.folding(40)
 
+        # This function put initial displacements as intial condition, this is no longer used
         #mesh.reset_initial()
 
+        # Write down the new structure file
         mesh.write_stru_split_gores('mesh_Structural.top' + suffix, 'mesh_Structural.surfacetop' + suffix, True, thickness, with_gap)
     elif element_type == 4:
         mesh = Mesh(4)
         suffix = '.quad'
         mesh.read_stru('Parachute_Mesh_Att/mesh_Structural.top' + suffix)
 
+        # calling the function, you can refine the mesh by cuting each edge into 2 
         mesh.refine()
         mesh.refine()
+
+        # Apply the accordion folding with 40 /\/\/\/\ .....
+        # The most important parameters in this function (hard-coded)
+        # the 1st parameter is cosa = 0.4 in [0, 1], the smaller cosa the more folded is the parachute 
+        # the 2nd parameter is disk_b3 = 7.5, the z displacement of disk   
         mesh.folding(40)
 
         #mesh.reset_initial()

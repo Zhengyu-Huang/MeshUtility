@@ -281,7 +281,9 @@ def ReadStru(inputStru, beamPars):
     '''
     :param inputStru:
     :param beamPars: parameters to handle phantom surface, skip beamPars[0] beams at all ends of these lines, the shape of
-    the cross section beamPars[1], 4 for square, radius of the cross section beamPars[2]
+    the cross section beamPars[1], 4 for square, radius of the cross section beamPars[2], beamPars[3] close or not,
+    sharp_or_not 1 or 0, adjust A and B for sharp tip or not
+    beamPars[4]: sharp_or_not
     :return: nodes: a list of 3 double,
              elems: a list of 3 int
     '''
@@ -291,7 +293,9 @@ def ReadStru(inputStru, beamPars):
         print("File '%s' not found." % inputStru)
         sys.exit()
 
-    skip, shape, r, close_or_not = beamPars
+    skip, shape, r, close_or_not, sharp_or_not = beamPars
+
+    sharp_or_not = 0
     nodes = []
     embSurfs = []
     bunchLines = []
@@ -332,11 +336,11 @@ def ReadStru(inputStru, beamPars):
 
     for i in range(len(allLines)):
         for line in allLines[i]:
+            print('len(line) is ', len(line))
             line_coord = np.empty([len(line) - 2 * skip, 3], dtype=float)
             for j in range(len(line) - 2 * skip):
                 line_coord[j, :] = nodes[line[j + skip] - 1]
-            #sharp_or_not 1 or 0, adjust A and B for sharp tip or not
-            sharp_or_not = 0
+
             A = np.array(nodes[line[skip - sharp_or_not] - 1])
             B = np.array(nodes[line[len(line) - skip + sharp_or_not - 1] - 1])
             phantomCoord, phantomTri = LineDressing(line_coord, r, shape, close_or_not, A, B)
@@ -372,7 +376,7 @@ def ReadPayload(inputPayload):
 
 
 
-def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.top', inputPayload = './capsule.top', output = 'embeddedSurface.top'):
+def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01, True], inputStru = './mesh_emb_raw.top', inputPayload = './capsule.top', output = 'embeddedSurface.top'):
     # beamPars[2] is the radius
 
     print("REMINDER: NO EMPTY LINES AT THE END")
@@ -464,13 +468,34 @@ def ParachuteEmbSurf(type, beamPars = [1, 4, 0.01], inputStru = './mesh_emb_raw.
 
 
 if __name__ == '__main__':
+
     print('You should first modify mesh_emb_row.top to mesh_emb.top, keep these lines you need and generate capsule part')
+    # You need to first call the Parachute_Refine.py to Refine the structure file
+    # Then you have mesh_Structural.top.tria or mesh_Structural.top.quad file, then you generate emebeded file for this
+
     d = 3.175e-3
     r = d/2.0
     # ParachuteEmbSurf(type = 1, beamPars=[12, 6, r, True], inputStru='./mesh_emb_raw_triangle.top', inputPayload='./capsule.top',
     #                   output='embeddedSurface.top')
 
+    '''
+    type: 1: including capsule, 2: not including capsule
+    
+    beamPars: parameters to handle phantom surface, skip beamPars[0] beams at all ends of these lines, the shape of
+    the cross section beamPars[1], 4 for square, radius of the cross section beamPars[2], beamPars[3] close or not,
+    sharp_or_not 1 or 0, adjust A and B for sharp tip or not
 
-    ParachuteEmbSurf(type=1, beamPars=[6, 6, r, True], inputStru='./mesh_Structural.top.tria_1',
+    inputStru: structure file, this is generated from Parachute Refine.py
+    And you need to clean it to have only nodes, canopy and suspension lines
+    If you do not want suspension line dressing, remove suspension lines from the mesh_Structural.top.tria
+    '''
+    ParachuteEmbSurf(type=1, beamPars=[6, 6, r, True, 0], inputStru='./EmbeddedSurface_Raw/Refine_1/mesh_Structural.top.tria',
                      inputPayload='./capsule.top',
-                     output='embeddedSurface.top')
+                     output='embeddedSurface_1.top')
+
+    # d = 1.e-3
+    # r = d/2.0
+    # ParachuteEmbSurf(type=1, beamPars=[3, 3, r, True, 0],
+    #                  inputStru='./EmbeddedSurface_Raw/Subscale_0/mesh_Structural.top.tria',
+    #                  inputPayload='./subscale_capsule.top',
+    #                  output='embeddedSurface.top')
